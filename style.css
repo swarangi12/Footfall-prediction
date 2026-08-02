@@ -1,38 +1,74 @@
-/* Main Background */
-.stApp {
-    background-color: hsl(182, 78%, 86%);
+/* ==========================
+   Main Background
+========================== */
+.stApp{
+    background-color:#E8F8F9;
 }
 
-/* Header */
-h1 {
-    color: #111315;
-    text-align: center;
-    font-weight: bold;
+/* ==========================
+   Headings
+========================== */
+h1{
+    color:#0F4C81 !important;
+    text-align:center;
+    font-weight:bold;
 }
 
-h3 {
-    color: #010a0f;
+h2,h3{
+    color:#1565C0 !important;
 }
 
-/* Metric Cards */
+/* All normal text */
+p, label, span, div{
+    color:#263238;
+}
+
+/* Markdown text */
+div[data-testid="stMarkdownContainer"]{
+    color:#263238 !important;
+}
+
+/* ==========================
+   Metric Cards
+========================== */
 div[data-testid="metric-container"]{
-    background: white;
+    background:white;
     border-radius:15px;
     padding:20px;
-    box-shadow:0px 4px 12px rgba(0,0,0,0.12);
-    border-left:6px solid #1E88E5;
+    box-shadow:0 4px 12px rgba(0,0,0,0.12);
+    border-left:6px solid #1976D2;
 }
 
-/* Sidebar */
+/* Metric Labels */
+div[data-testid="metric-container"] label{
+    color:#455A64 !important;
+    font-weight:bold;
+}
+
+/* Metric Values */
+div[data-testid="metric-container"] div{
+    color:#0F4C81 !important;
+    font-weight:bold;
+}
+
+/* ==========================
+   Sidebar
+========================== */
 section[data-testid="stSidebar"]{
-    background:#f1a0e9;
-    color:white;
+    background:#0F4C81;
 }
 
-/* Buttons */
+/* Sidebar text */
+section[data-testid="stSidebar"] *{
+    color:white !important;
+}
+
+/* ==========================
+   Buttons
+========================== */
 .stButton>button{
     background:#1976D2;
-    color:rgb(19, 18, 18);
+    color:white !important;
     border-radius:10px;
     height:50px;
     width:100%;
@@ -44,13 +80,33 @@ section[data-testid="stSidebar"]{
     background:#1565C0;
 }
 
-/* Tables */
-thead tr th{
-    background:#1976D2 !important;
-    color:rgba(9, 9, 9, 0.958) !important;
+/* ==========================
+   Selectbox & Date Input
+========================== */
+.stSelectbox label,
+.stDateInput label{
+    color:#263238 !important;
+    font-weight:bold;
 }
 
-/* Footer */
+/* ==========================
+   Info, Success & Warning
+========================== */
+.stAlert{
+    color:#263238 !important;
+}
+
+/* ==========================
+   Tables
+========================== */
+thead tr th{
+    background:#1976D2 !important;
+    color:white !important;
+}
+
+/* ==========================
+   Footer
+========================== */
 footer{
     visibility:hidden;
 }

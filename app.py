@@ -8,9 +8,7 @@ import pandas as pd
 
 import holidays
 
-# ---------------------------------------------------
-# PAGE CONFIG
-# ---------------------------------------------------
+
 
 st.set_page_config(
     page_title="AI Footfall Prediction Dashboard",
@@ -18,9 +16,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# ---------------------------------------------------
-# LOAD CSS
-# ---------------------------------------------------
+
 
 try:
     with open("style.css") as f:
@@ -31,18 +27,14 @@ try:
 except:
     pass
 
-# ---------------------------------------------------
-# FILE PATHS
-# ---------------------------------------------------
+
 
 BASE_DIR = Path(__file__).resolve().parent
 
 MODEL_PATH = BASE_DIR / "footfall_prediction_model (3).pkl"
 DATA_PATH = BASE_DIR / "hourlyfootfall_till_current_date1.xlsx"
 
-# ---------------------------------------------------
-# LOAD MODEL
-# ---------------------------------------------------
+
 
 @st.cache_resource
 def load_model():
@@ -52,9 +44,6 @@ def load_model():
 
     return model
 
-# ---------------------------------------------------
-# LOAD DATA
-# ---------------------------------------------------
 
 @st.cache_data
 def load_data():
@@ -68,9 +57,6 @@ def load_data():
 
 india_holidays = holidays.India()
 
-# ---------------------------------------------------
-# TRY LOADING
-# ---------------------------------------------------
 
 try:
 
@@ -92,9 +78,6 @@ except Exception as e:
 
     st.stop()
 
-# ---------------------------------------------------
-# TITLE
-# ---------------------------------------------------
 
 st.markdown(
 """
@@ -110,9 +93,7 @@ unsafe_allow_html=True
 )
 
 st.markdown("---")
-# ===================================================
-# SIDEBAR
-# ===================================================
+
 
 st.sidebar.header("Prediction Inputs")
 
@@ -140,9 +121,7 @@ predict = st.sidebar.button(
     use_container_width=True
 )
 
-# ===================================================
-# MAIN LAYOUT
-# ===================================================
+
 
 left, right = st.columns([1, 2])
 
@@ -160,9 +139,7 @@ with left:
         "Select the inputs and click **Predict Footfall**."
     )
 
-# ===================================================
-# FEATURE ENGINEERING
-# ===================================================
+
 
 selected_date = pd.to_datetime(selected_date)
 
@@ -182,9 +159,7 @@ if holiday == 1:
     holiday_name = india_holidays.get(selected_date)
     st.error(f"🎉 {holiday_name}! Higher footfall may be expected.")
 
-# ===================================================
-# HISTORICAL DATA
-# ===================================================
+
 
 history = df[
     (df["store_id"] == store_id) &
@@ -197,9 +172,7 @@ if history.empty:
 
     st.stop()
 
-# ===================================================
-# LAG FEATURES
-# ===================================================
+
 
 lag1 = history["total_footfall"].iloc[-1]
 
@@ -223,9 +196,6 @@ rolling30 = history["total_footfall"].tail(
     min(30, len(history))
 ).mean()
 
-# ===================================================
-# FEATURE LIST
-# ===================================================
 
 features = [
 
@@ -261,9 +231,6 @@ features = [
 
 ]
 
-# ===================================================
-# MODEL INPUT
-# ===================================================
 
 input_data = pd.DataFrame({
 
@@ -299,9 +266,7 @@ input_data = pd.DataFrame({
 
 })
 
-# ===================================================
-# DASHBOARD KPI CARDS
-# ===================================================
+
 
 k1, k2, k3, k4 = st.columns(4)
 
@@ -326,9 +291,7 @@ k4.metric(
 )
 
 st.markdown("---")
-# ===================================================
-# PREDICTION
-# ===================================================
+
 
 if predict:
 
@@ -350,9 +313,7 @@ if predict:
 
             st.caption("Model Confidence : 95%")
 
-        # ===================================================
-        # NEXT 7 DAYS FORECAST
-        # ===================================================
+        
 
         future_dates = pd.date_range(
             start=selected_date,
@@ -404,16 +365,12 @@ if predict:
                 st.write(
                 f"📅 {row['date'].strftime('%d-%m-%Y')} - {holiday_name}"
                 )
-        # ===================================================
-        # WEEKEND ALERT
-        # ===================================================
+    
 
         if is_weekend == 1:
             st.warning("📅 Selected date is a weekend. Higher footfall may be expected.")
 
-        # ===================================================
-        # TABLE
-        # ===================================================
+        
 
         st.markdown("---")
 
@@ -433,9 +390,7 @@ if predict:
             use_container_width=True
         )
 
-        # ===================================================
-        # GRAPH
-        # ===================================================
+        
 
         st.subheader("📊 Footfall Forecast")
 
@@ -465,9 +420,7 @@ if predict:
 
         st.pyplot(fig)
 
-        # ===================================================
-        # HIGHEST / LOWEST
-        # ===================================================
+        
 
         highest = future.loc[
             future["Predicted_Footfall"].idxmax()
@@ -497,9 +450,7 @@ if predict:
                 f"{lowest['date'].strftime('%d-%m-%Y')}"
             )
 
-        # ===================================================
-        # MODEL PERFORMANCE
-        # ===================================================
+        
 
         st.markdown("---")
 
@@ -515,9 +466,7 @@ if predict:
         c2.metric("MAE", f"{mae:.2f}")
         c3.metric("RMSE", f"{rmse:.2f}")
 
-        # ===================================================
-        # SUMMARY
-        # ===================================================
+       
 
         st.markdown("---")
 
@@ -540,9 +489,7 @@ if predict:
             f"{future['Predicted_Footfall'].min():.2f}"
         )
 
-        # ===================================================
-        # DOWNLOAD CSV
-        # ===================================================
+       
 
         csv = future[
             ["date", "Predicted_Footfall"]
@@ -559,9 +506,7 @@ if predict:
             mime="text/csv"
         )
 
-        # ===================================================
-        # HISTORICAL DATA
-        # ===================================================
+        
 
         with st.expander("📂 View Historical Data"):
 
@@ -570,9 +515,7 @@ if predict:
                 use_container_width=True
             )
 
-        # ===================================================
-        # FOOTER
-        # ===================================================
+        
 
         st.markdown("---")
 
