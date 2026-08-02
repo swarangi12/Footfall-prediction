@@ -82,7 +82,7 @@ except Exception as e:
 st.markdown(
 """
 <h1 style="color:#0F4C81; text-align:center;">
-📊 AI Footfall Prediction Dashboard
+📊Footfall Prediction Dashboard
 </h1>
 
 <p style="text-align:center;font-size:20px;">
@@ -523,7 +523,7 @@ if predict:
         """
         <center>
 
-        ### 📊 AI-Based Footfall Prediction System
+        ### 📊 Footfall Prediction System
 
         Developed using
 
