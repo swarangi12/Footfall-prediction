@@ -11,7 +11,7 @@ import holidays
 
 
 st.set_page_config(
-    page_title="AI Footfall Prediction Dashboard",
+    page_title="Footfall Prediction Dashboard",
     page_icon="📊",
     layout="wide"
 )
