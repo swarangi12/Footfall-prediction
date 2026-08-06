@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 import holidays
+import os
 
 
 
@@ -31,8 +32,8 @@ except:
 
 BASE_DIR = Path(__file__).resolve().parent
 
-MODEL_PATH = BASE_DIR / "footfall_prediction_model (3).pkl"
-DATA_PATH = BASE_DIR / "hourlyfootfall_till_current_date1.xlsx"
+MODEL_PATH = BASE_DIR / "footfall_prediction_model.pkl"
+DATA_PATH = BASE_DIR / "hourlyfootfall_till_current_date1.csv"
 
 
 
@@ -98,12 +99,14 @@ st.markdown("---")
 st.sidebar.header("Prediction Inputs")
 
 store_list = sorted(df["store_id"].unique())
-gate_list = sorted(df[df["gate_id"] > 0]["gate_id"].unique())
-
 
 store_id = st.sidebar.selectbox(
     "🏪 Select Store",
     store_list
+)
+
+gate_list = sorted(
+    df[df["store_id"] == store_id]["gate_id"].unique()
 )
 
 gate_id = st.sidebar.selectbox(
@@ -111,15 +114,20 @@ gate_id = st.sidebar.selectbox(
     gate_list
 )
 
+
 selected_date = st.sidebar.date_input(
     "📅 Prediction Date",
     value=date.today()
 )
 
-predict = st.sidebar.button(
+if "predicted" not in st.session_state:
+    st.session_state.predicted = False
+
+if st.sidebar.button(
     "🚀 Predict Footfall",
     use_container_width=True
-)
+):
+    st.session_state.predicted = True
 
 
 
@@ -293,12 +301,45 @@ k4.metric(
 st.markdown("---")
 
 
-if predict:
+if st.session_state.predicted:
 
     try:
+        prediction = float(model.predict(input_data[features])[0])
 
         # Today's Prediction
-        prediction = float(model.predict(input_data[features])[0])
+        st.session_state.store = store_id
+        st.session_state.gate = gate_id
+        st.session_state.prediction_date = selected_date
+        st.session_state.prediction = prediction
+        import os
+
+        prediction_log = "prediction_log.csv"
+
+        new_prediction = pd.DataFrame({
+        "date": [selected_date.strftime("%Y-%m-%d")],
+        "store_id": [store_id],
+        "gate_id": [gate_id],
+        "predicted": [round(float(prediction), 2)]
+        })
+
+        if os.path.exists(prediction_log):
+
+            old = pd.read_csv(prediction_log)
+
+            mask = (
+                (old["date"] == selected_date.strftime("%Y-%m-%d")) &
+                (old["store_id"] == store_id) &
+                (old["gate_id"] == gate_id)
+                )
+
+            if mask.any():
+                old.loc[mask, "predicted"] = round(prediction, 2)
+            else:
+                old = pd.concat([old, new_prediction], ignore_index=True)
+
+            old.to_csv(prediction_log, index=False)
+        else:
+            new_prediction.to_csv(prediction_log, index=False)
 
         with right:
 
@@ -505,6 +546,76 @@ if predict:
             file_name="footfall_prediction.csv",
             mime="text/csv"
         )
+        st.markdown("---")
+
+        st.subheader("📝 Enter Actual Footfall")
+
+        actual_value = st.number_input(
+        "Actual Footfall",
+        min_value=0,
+        step=1
+        )
+
+        if st.button("💾 Save Actual Footfall"):
+
+            actual_file = "actual_footfall.csv"
+
+            new_actual = pd.DataFrame({
+            "date":[selected_date.strftime("%Y-%m-%d")],
+            "store_id":[store_id],
+            "gate_id":[gate_id],
+            "actual":[actual_value]
+            })
+
+            if os.path.exists(actual_file):
+
+                old = pd.read_csv(actual_file)
+
+                mask = (
+                    (old["date"] == selected_date.strftime("%Y-%m-%d")) &
+                    (old["store_id"] == store_id) &
+                    (old["gate_id"] == gate_id)
+                )
+
+                if mask.any():
+                    old.loc[mask, "actual"] = actual_value
+                else:
+                    old = pd.concat([old, new_actual], ignore_index=True)
+
+                old.to_csv(actual_file, index=False)
+
+            else:
+                new_actual.to_csv(actual_file, index=False)
+
+            st.success("✅ Actual Footfall Saved")
+
+    # Update error log
+            pred = pd.read_csv("prediction_log.csv")
+            actual = pd.read_csv("actual_footfall.csv")
+
+            error_df = pred.merge(
+                actual,
+                on=["date","store_id","gate_id"]
+            )
+
+            error_df["error"] = abs(
+                error_df["actual"] -
+                error_df["predicted"]
+            )
+
+            error_df["error_percent"] = (
+                error_df["error"] /
+                error_df["actual"].replace(0,1)
+            ) * 100
+
+            error_df.to_csv(
+                "error_log.csv",
+                index=False
+            )
+
+            st.success("✅ Error Log Updated")
+
+            st.rerun()
 
         
 
@@ -514,6 +625,60 @@ if predict:
                 history.tail(20),
                 use_container_width=True
             )
+            st.subheader("📊 Prediction Error Analysis")
+
+            if os.path.exists("error_log.csv"):
+
+                error_df = pd.read_csv("error_log.csv")
+
+                colors = []
+
+                for error in error_df["error_percent"]:
+                    if error > 25:
+                        colors.append("yellow")
+                    else:
+                        colors.append("steelblue")
+
+                fig, ax = plt.subplots(figsize=(10,5))
+
+                ax.bar(
+                    error_df["date"],
+                    error_df["error_percent"],
+                    color=colors
+                )
+
+                ax.axhline(
+                    y=25,
+                    color="red",
+                    linestyle="--",
+                    label="25% Threshold"
+                )
+
+                ax.set_xlabel("Date")
+                ax.set_ylabel("Error (%)")
+                ax.set_title("Prediction Error")
+
+                plt.xticks(rotation=45)
+
+                ax.legend()
+
+                st.pyplot(fig)
+
+                if (error_df["error_percent"] > 25).any():
+
+                    st.warning(
+                        "⚠️ Yellow bars indicate days where the prediction error exceeded 25%. Consider retraining the model."
+                    )
+
+                else:
+
+                    st.success(
+                    "✅ All prediction errors are below 25%."
+                    )
+
+            else:
+
+                st.info("No prediction error data available yet.")
 
         
 
