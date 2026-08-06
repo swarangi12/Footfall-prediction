@@ -1,49 +1,72 @@
 import pandas as pd
-import os
-import numpy as np
+import subprocess
 
-# Check if files exist
-if not os.path.exists("prediction_log.csv"):
-    print("prediction_log.csv not found")
-    exit()
-
-if not os.path.exists("actual_footfall.csv"):
-    print("actual_footfall.csv not found")
-    exit()
-
-# Read files
 pred = pd.read_csv("prediction_log.csv")
+
 actual = pd.read_csv("actual_footfall.csv")
 
-# Merge prediction and actual
 df = pred.merge(
     actual,
-    on=["date", "store_id", "gate_id"]
+    on=["date","store_id","gate_id"]
 )
+df["error_percent"] = (
+    abs(df["actual"] - df["predicted"])
+    / df["actual"]
+) * 100
 
-if df.empty:
-    print("No matching prediction and actual data found.")
-    exit()
-
-# Absolute Error
 df["error"] = abs(
-    df["actual"] - df["predicted"]
+    df["actual"] -
+    df["predicted"]
 )
 
-# Percentage Error
-df["error_percent"] = np.where(
-    df["actual"] == 0,
-    0,
-    (df["error"] / df["actual"]) * 100
-)
-
-# Save error log
 df.to_csv("error_log.csv", index=False)
 
-# Average error of last 7 entries
-average_error = df["error_percent"].tail(7).mean()
+average_error = df["error"].tail(7).mean()
 
-print(f"Average Error = {average_error:.2f}%")
+print("Average Error =", average_error)
+import matplotlib.pyplot as plt
+
+colors = []
+
+for error in df["error_percent"]:
+    if error > 25:
+        colors.append("yellow")
+    else:
+        colors.append("steelblue")
+
+plt.figure(figsize=(10,5))
+
+plt.bar(
+    df["date"],
+    df["error_percent"],
+    color=colors
+)
+
+plt.axhline(
+    y=25,
+    color="red",
+    linestyle="--",
+    label="25% Threshold"
+)
+
+plt.xlabel("Date")
+plt.ylabel("Prediction Error (%)")
+plt.title("Prediction Error Analysis")
+plt.xticks(rotation=45)
+plt.legend()
+
+plt.show()
+import streamlit as st
+if (df["error_percent"] > 25).any():
+
+    st.warning(
+        "⚠️ Prediction error exceeded 25% on one or more days. The yellow bars indicate high-error days."
+    )
+else:
+
+    st.success(
+        "✅ All prediction errors are below 25%."
+    )
 
 import subprocess
 import sys
