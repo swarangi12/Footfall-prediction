@@ -3,4 +3,4 @@ __pycache__/
 *.pyc
 
 hourlyfootfall_till_current_date1.xlsx
-
+.streamlit/secrets.toml
