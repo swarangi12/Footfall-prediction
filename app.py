@@ -559,71 +559,119 @@ if st.session_state.predicted:
         st.subheader("📝 Enter Actual Footfall")
 
         actual_value = st.number_input(
-        "Actual Footfall",
-        min_value=0,
-        step=1
-        )
+            "Actual Footfall",
+            min_value=0,
+            step=1
+            )
 
         if st.button("💾 Save Actual Footfall"):
 
-            actual_file = "actual_footfall.csv"
+            actual_data = {
+                "date": selected_date.strftime("%Y-%m-%d"),
+                "store_id": int(store_id),
+                "gate_id": int(gate_id),
+                "actual": int(actual_value)
+            }
 
-            new_actual = pd.DataFrame({
-            "date":[selected_date.strftime("%Y-%m-%d")],
-            "store_id":[store_id],
-            "gate_id":[gate_id],
-            "actual":[actual_value]
-            })
+            try:
 
-            if os.path.exists(actual_file):
+        # Save actual value to Supabase
+                response = supabase.table("actual_footfall").upsert(
+                    actual_data,
+                    on_conflict="date,store_id,gate_id"
+                ).execute()
 
-                old = pd.read_csv(actual_file)
+                st.success("✅ Actual Footfall Saved to Supabase!")
 
-                mask = (
-                    (old["date"] == selected_date.strftime("%Y-%m-%d")) &
-                    (old["store_id"] == store_id) &
-                    (old["gate_id"] == gate_id)
+        # -----------------------------
+        # Update local CSV as backup
+        # -----------------------------
+
+                actual_file = "actual_footfall.csv"
+
+                new_actual = pd.DataFrame({
+                    "date": [selected_date.strftime("%Y-%m-%d")],
+                    "store_id": [store_id],
+                    "gate_id": [gate_id],
+                    "actual": [actual_value]
+                })
+
+                if os.path.exists(actual_file):
+
+                    old = pd.read_csv(actual_file)
+
+                    mask = (
+                        (old["date"] == selected_date.strftime("%Y-%m-%d")) &
+                        (old["store_id"] == store_id) &
+                        (old["gate_id"] == gate_id)
+                    )
+
+                    if mask.any():
+
+                        old.loc[mask, "actual"] = actual_value
+
+                    else:
+
+                        old = pd.concat(
+                            [old, new_actual],
+                            ignore_index=True
+                        )
+
+                    old.to_csv(
+                        actual_file,
+                        index=False
+                    )
+
+                else:
+
+                    new_actual.to_csv(
+                        actual_file,
+                        index=False
+                    )
+
+        # -----------------------------
+        # Update error log
+        # -----------------------------
+
+                pred = pd.read_csv("prediction_log.csv")
+
+                actual = pd.read_csv("actual_footfall.csv")
+
+                error_df = pred.merge(
+                    actual,
+                    on=["date", "store_id", "gate_id"]
                 )
 
-                if mask.any():
-                    old.loc[mask, "actual"] = actual_value
-                else:
-                    old = pd.concat([old, new_actual], ignore_index=True)
+                if not error_df.empty:
 
-                old.to_csv(actual_file, index=False)
+                    error_df["error"] = abs(
+                        error_df["actual"] -
+                        error_df["predicted"]
+                    )
 
-            else:
-                new_actual.to_csv(actual_file, index=False)
+                    error_df["error_percent"] = (
+                        error_df["error"] /
+                        error_df["actual"].replace(0, 1)
+                    ) * 100
 
-            st.success("✅ Actual Footfall Saved")
+                    error_df["error_percent"] = (
+                        error_df["error_percent"].round(2)
+                    )
 
-    # Update error log
-            pred = pd.read_csv("prediction_log.csv")
-            actual = pd.read_csv("actual_footfall.csv")
+                    error_df.to_csv(
+                        "error_log.csv",
+                        index=False
+                    )
 
-            error_df = pred.merge(
-                actual,
-                on=["date","store_id","gate_id"]
-            )
+                    st.success("✅ Error Log Updated")
 
-            error_df["error"] = abs(
-                error_df["actual"] -
-                error_df["predicted"]
-            )
+                st.rerun()
 
-            error_df["error_percent"] = (
-                error_df["error"] /
-                error_df["actual"].replace(0,1)
-            ) * 100
+            except Exception as e:
 
-            error_df.to_csv(
-                "error_log.csv",
-                index=False
-            )
-
-            st.success("✅ Error Log Updated")
-
-            st.rerun()
+                 st.error(
+                    f"❌ Failed to save actual footfall: {e}"
+                )
 
         
 
