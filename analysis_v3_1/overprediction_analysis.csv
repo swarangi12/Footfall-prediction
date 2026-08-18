@@ -1,0 +1,8 @@
+metric,value
+count,135784.0
+percentage_of_predictions,53.623783647162895
+mean_overprediction,49.947490985765725
+median_overprediction,20.839609144364967
+maximum_overprediction,5167.994164339663
+mean_actual,326.89799239969363
+mean_predicted,376.8454833854594

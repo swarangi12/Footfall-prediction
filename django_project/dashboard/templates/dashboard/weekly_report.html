@@ -1,134 +1,299 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <title>Weekly Footfall Report</title>
 
     <style>
-
         body {
-            font-family: Arial, sans-serif;
-            background: #f4f7fb;
             margin: 0;
+            padding: 28px;
+            background: #f4f6f9;
+            font-family: Arial, Helvetica, sans-serif;
+            color: #111827;
+        }
+
+        .container {
+            max-width: 1500px;
+            margin: auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 18px;
+            padding: 30px 38px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 40px;
+            color: #111827;
+        }
+
+        .header p {
+            margin: 10px 0 0;
+            font-size: 20px;
+            color: #4b5563;
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 18px;
             padding: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
         }
 
-        h1 {
-            color: #125487;
+        .card-title {
+            color: #6b7280;
+            font-size: 18px;
+            margin-bottom: 14px;
         }
 
-        .filters {
-            margin: 20px 0;
+        .card-value {
+            font-size: 36px;
+            font-weight: bold;
         }
 
-        select {
-            padding: 10px;
-            font-size: 15px;
-            margin-right: 10px;
+        .available {
+            color: #16a34a;
+        }
+
+        .error-box {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+            font-size: 17px;
+        }
+
+        .report-section {
+            background: white;
+            border-radius: 18px;
+            padding: 30px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            overflow-x: auto;
+        }
+
+        .report-section h2 {
+            margin-top: 0;
+            font-size: 32px;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            background: white;
+            margin-top: 20px;
         }
 
         th {
-            background: #125487;
-            color: white;
-            padding: 14px;
+            background: #eef1f5;
+            color: #111827;
+            padding: 18px;
+            text-align: left;
+            font-size: 17px;
         }
 
         td {
-            padding: 12px;
-            text-align: center;
-            border: 1px solid #ddd;
+            padding: 16px 18px;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 16px;
         }
 
-        tr:nth-child(even) {
-            background: #f5f5f5;
+        tr:hover {
+            background: #f9fafb;
         }
 
-        .good {
-            color: green;
-            font-weight: bold;
+        .na {
+            color: #6b7280;
+            font-style: italic;
         }
 
-        .bad {
-            color: red;
-            font-weight: bold;
+        .back-button {
+            display: inline-block;
+            margin-top: 25px;
+            padding: 14px 22px;
+            background: #333;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 17px;
         }
 
-        .no-data {
-            text-align: center;
-            padding: 20px;
+        .back-button:hover {
+            background: #111;
         }
 
+        @media (max-width: 900px) {
+            .cards {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 30px;
+            }
+        }
     </style>
-
 </head>
 
 <body>
 
-<h1>📊 Weekly Footfall Report</h1>
+<div class="container">
 
-<h3>Predicted vs Actual Footfall</h3>
+    <!-- =====================================================
+         HEADER
+    ====================================================== -->
 
+    <div class="header">
 
-<!-- FILTER -->
-<div class="filters">
+        <h1><center>Weekly Footfall Report</center></h1>
 
-    <label><b>Filter Error:</b></label>
+        <p><center>
+            Prediction vs Actual Footfall Analysis
+        </p></center>
 
-    <select id="errorFilter" onchange="filterTable()">
-
-        <option value="all">All</option>
-        <option value="15">Error ≤ 15%</option>
-        <option value="20">Error ≤ 20%</option>
-        <option value="above20">Error > 20%</option>
-
-    </select>
-
-</div>
+    </div>
 
 
-<table id="reportTable">
+    <!-- =====================================================
+         ERROR MESSAGE
+    ====================================================== -->
+
+    {% if error %}
+
+        <div class="error-box">
+            {{ error }}
+        </div>
+
+    {% endif %}
+    
+
+
+    <!-- =====================================================
+         SUMMARY CARDS
+    ====================================================== -->
+
+    
+
+        
+
+        </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         REPORT TABLE
+    ====================================================== -->
+
+    <div class="report-section">
+
+        
+
+
+        <table>
+
+            <thead>
+
+                <tr>
+
+                    <table>
 
     <thead>
-
         <tr>
             <th>Date</th>
-            <th>Store</th>
-            <th>Gate</th>
+            <th>Store ID</th>
+            <th>Gate ID</th>
+
+            <th>7-8 AM</th>
+            <th>8-9 AM</th>
+            <th>9-10 AM</th>
+            <th>10-11 AM</th>
+            <th>11 AM-12 PM</th>
+            <th>12-1 PM</th>
+            <th>1-2 PM</th>
+            <th>2-3 PM</th>
+            <th>3-4 PM</th>
+            <th>4-5 PM</th>
+            <th>5-6 PM</th>
+            <th>6-7 PM</th>
+            <th>7-8 PM</th>
+            <th>8-9 PM</th>
+
             <th>Predicted</th>
             <th>Actual</th>
+            <th>Absolute Error</th>
             <th>Error %</th>
         </tr>
-
     </thead>
 
     <tbody>
 
-        {% if rows %}
+        {% if table_data %}
 
-            {% for row in rows %}
+            {% for row in table_data %}
 
             <tr>
 
                 <td>{{ row.date }}</td>
-
                 <td>{{ row.store_id }}</td>
-
                 <td>{{ row.gate_id }}</td>
 
-                <td>{{ row.predicted|floatformat:2 }}</td>
+                <!-- HOURLY FOOTFALL -->
 
-                <td>{{ row.actual|floatformat:0 }}</td>
+                <td>{{ row.t7_00_8_00 }}</td>
+                <td>{{ row.t8_00_9_00 }}</td>
+                <td>{{ row.t9_00_10_00 }}</td>
+                <td>{{ row.t10_00_11_00 }}</td>
+                <td>{{ row.t11_00_12_00 }}</td>
+                <td>{{ row.t12_00_13_00 }}</td>
+                <td>{{ row.t13_00_14_00 }}</td>
+                <td>{{ row.t14_00_15_00 }}</td>
+                <td>{{ row.t15_00_16_00 }}</td>
+                <td>{{ row.t16_00_17_00 }}</td>
+                <td>{{ row.t17_00_18_00 }}</td>
+                <td>{{ row.t18_00_19_00 }}</td>
+                <td>{{ row.t19_00_20_00 }}</td>
+                <td>{{ row.t20_00_21_00 }}</td>
 
-                <td class="error-cell"
-                    data-error="{{ row.error_percent }}">
+                <!-- PREDICTION -->
 
-                    {{ row.error_percent }}%
+                <td>{{ row.predicted }}</td>
+
+                <!-- ACTUAL -->
+
+                <td>{{ row.actual }}</td>
+
+                <!-- ABSOLUTE ERROR -->
+
+                <td>{{ row.absolute_error }}</td>
+
+                <!-- ERROR PERCENT -->
+
+                <td>
+
+                    {% if row.error_percent == "N/A" %}
+
+                        <span class="na">
+                            N/A
+                        </span>
+
+                    {% else %}
+
+                        {{ row.error_percent }}%
+
+                    {% endif %}
 
                 </td>
 
@@ -140,8 +305,11 @@
 
             <tr>
 
-                <td colspan="6" class="no-data">
-                    No matching prediction and actual data available.
+                <td
+                    colspan="21"
+                    style="text-align:center; padding:30px;"
+                >
+                    No records found.
                 </td>
 
             </tr>
@@ -151,56 +319,23 @@
     </tbody>
 
 </table>
+                
+
+    </div>
 
 
-<script>
+    <!-- =====================================================
+         BACK BUTTON
+    ====================================================== -->
 
-function filterTable() {
+    <a
+        href="/"
+        class="back-button"
+    >
+        ← Back to Dashboard
+    </a>
 
-    let filter = document.getElementById("errorFilter").value;
-
-    let rows = document.querySelectorAll("#reportTable tbody tr");
-
-    rows.forEach(function(row) {
-
-        let errorCell = row.querySelector(".error-cell");
-
-        if (!errorCell) {
-            return;
-        }
-
-        let error = parseFloat(
-            errorCell.getAttribute("data-error")
-        );
-
-        let show = true;
-
-        if (filter === "15") {
-
-            show = error <= 15;
-
-        }
-
-        else if (filter === "20") {
-
-            show = error <= 20;
-
-        }
-
-        else if (filter === "above20") {
-
-            show = error > 20;
-
-        }
-
-        row.style.display = show ? "" : "none";
-
-    });
-
-}
-
-</script>
-
+</div>
 
 </body>
 </html>

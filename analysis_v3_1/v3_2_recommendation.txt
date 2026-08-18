@@ -1,0 +1,27 @@
+FOOTFALL PREDICTION V3.2 RECOMMENDATION
+===========================================================================
+
+1. Overall MAPE remains above 20%. V3.2 should focus on reducing percentage error, especially for normal/high footfall.
+
+2. WAPE is reasonably controlled, but large absolute errors should still be investigated.
+
+3. NORMAL/HIGH regression is the main weakness. MAE = 79.40 versus LOW MAE = 9.39. Prioritize the normal/high model in V3.2.
+
+4. Stage-1 routing is strong (92.79% LOW recall). Do not make major classifier changes yet.
+
+5. Worst weekday is Sunday (MAE 93.21). Best weekday is Tuesday (MAE 42.95). V3.2 should strengthen weekday/weekend interactions.
+
+6. Worst month is October (MAE 100.65). Investigate seasonal, holiday and month-specific patterns.
+
+7. Overpredictions are more frequent. V3.2 should investigate whether lag/rolling features are causing excessive prediction levels.
+
+8. High-footfall observations have substantially larger errors (MAE 245.09). V3.2 should add peak/event-aware features.
+
+9. Recommended V3.2 features: weekday-specific lag/rolling statistics, 7-vs-30 and 14-vs-28 growth ratios, previous/next holiday distance, store × gate interaction, recent peak-footfall statistics, and recent maximum/median footfall.
+
+10. Keep the strict date-based train/test split from V3.1. Do not change the V3.1 test period when comparing V3.2.
+
+11. Keep the same 32 core features initially and add V3.2 features incrementally so the impact of each feature group can be measured.
+
+12. Do not blindly increase XGBoost depth or estimators. The major problem appears to be feature representation of peaks/seasonality rather than simply insufficient model complexity.
+

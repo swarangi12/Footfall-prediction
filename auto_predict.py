@@ -1,130 +1,491 @@
 import pandas as pd
-import pickle
+import numpy as np
 import holidays
 from datetime import date
 from pathlib import Path
 import os
+import xgboost as xgb
 
+
+# =========================================================
+# PATHS
+# =========================================================
 
 BASE_DIR = Path(__file__).resolve().parent
 
-MODEL_PATH = BASE_DIR / "footfall_prediction_model.pkl"
+MODEL_PATH = BASE_DIR / "footfall_prediction_model.json"
 DATA_PATH = BASE_DIR / "hourlyfootfall_till_current_date1.csv"
 PREDICTION_LOG = BASE_DIR / "prediction_log.csv"
 
 
-# -----------------------------
+# =========================================================
 # LOAD MODEL
-# -----------------------------
+# =========================================================
 
-print("Loading model...")
+print("=" * 60)
+print("LOADING MODEL")
+print("=" * 60)
 
-with open(MODEL_PATH, "rb") as f:
-    model = pickle.load(f)
+model = xgb.XGBRegressor()
+
+model.load_model(str(MODEL_PATH))
+
+print("Model loaded successfully.")
+
+print()
+print("Model features:")
+print(model.get_booster().feature_names)
+
+features = model.get_booster().feature_names
+
+print()
+print("Number of features:", len(features))
 
 
-# -----------------------------
+# =========================================================
 # LOAD DATA
-# -----------------------------
+# =========================================================
 
-print("Loading dataset...")
+print()
+print("=" * 60)
+print("LOADING DATA")
+print("=" * 60)
 
 df = pd.read_csv(DATA_PATH)
 
-df["date"] = pd.to_datetime(df["date"])
+df["date"] = pd.to_datetime(df["date"], errors="coerce")
+
+df = df.dropna(
+    subset=[
+        "date",
+        "store_id",
+        "gate_id",
+        "total_footfall"
+    ]
+).copy()
+
+df = df.sort_values(
+    ["store_id", "gate_id", "date"]
+).reset_index(drop=True)
+
+print("Rows:", len(df))
+
+print(
+    "Date range:",
+    df["date"].min(),
+    "to",
+    df["date"].max()
+)
 
 
-# -----------------------------
+# =========================================================
 # HOLIDAYS
-# -----------------------------
+# =========================================================
 
 india_holidays = holidays.India()
 
 
-# -----------------------------
+# =========================================================
 # PREDICTION DATE
-# -----------------------------
+# =========================================================
 
 selected_date = pd.Timestamp(date.today())
+
+print()
+print("=" * 60)
+print("PREDICTION DATE")
+print("=" * 60)
 
 print("Prediction date:", selected_date.date())
 
 
-# -----------------------------
-# GET STORE + GATE COMBINATIONS
-# -----------------------------
+# =========================================================
+# STORE + GATE COMBINATIONS
+# =========================================================
 
 store_gate = (
-    df[["store_id", "gate_id"]]
+    df[
+        [
+            "store_id",
+            "gate_id"
+        ]
+    ]
     .drop_duplicates()
+    .sort_values(
+        [
+            "store_id",
+            "gate_id"
+        ]
+    )
+    .reset_index(drop=True)
+)
+
+print()
+print(
+    "Store/gate combinations:",
+    len(store_gate)
 )
 
 
-features = [
-    "store_id",
-    "gate_id",
-    "year",
-    "month",
-    "day",
-    "weekday",
-    "week",
-    "quarter",
-    "is_weekend",
-    "holiday",
-    "lag1",
-    "lag7",
-    "lag30",
-    "rolling7",
-    "rolling30"
-]
+# =========================================================
+# CREATE CALENDAR FEATURES
+# =========================================================
 
+df["year"] = df["date"].dt.year
+
+df["month"] = df["date"].dt.month
+
+df["day"] = df["date"].dt.day
+
+df["weekday"] = df["date"].dt.weekday
+
+df["week"] = (
+    df["date"]
+    .dt.isocalendar()
+    .week
+    .astype(int)
+)
+
+df["quarter"] = df["date"].dt.quarter
+
+df["is_weekend"] = (
+    df["weekday"] >= 5
+).astype(int)
+
+df["holiday"] = (
+    df["date"]
+    .dt.date
+    .isin(india_holidays)
+    .astype(int)
+)
+
+
+# =========================================================
+# CYCLICAL FEATURES
+# =========================================================
+
+df["weekday_sin"] = np.sin(
+    2 * np.pi * df["weekday"] / 7
+)
+
+df["weekday_cos"] = np.cos(
+    2 * np.pi * df["weekday"] / 7
+)
+
+df["month_sin"] = np.sin(
+    2 * np.pi * df["month"] / 12
+)
+
+df["month_cos"] = np.cos(
+    2 * np.pi * df["month"] / 12
+)
+
+
+# =========================================================
+# EXTRA CALENDAR FEATURES
+# =========================================================
+
+df["is_month_start"] = (
+    df["date"].dt.is_month_start.astype(int)
+)
+
+df["is_month_end"] = (
+    df["date"].dt.is_month_end.astype(int)
+)
+
+df["is_quarter_start"] = (
+    df["date"].dt.is_quarter_start.astype(int)
+)
+
+df["is_quarter_end"] = (
+    df["date"].dt.is_quarter_end.astype(int)
+)
+
+
+# =========================================================
+# GENERATE PREDICTIONS
+# =========================================================
 
 all_predictions = []
 
+failed = 0
 
-# -----------------------------
-# PREDICT FOR EVERY STORE/GATE
-# -----------------------------
+print()
+print("=" * 60)
+print("STARTING PREDICTIONS")
+print("=" * 60)
 
-for _, row in store_gate.iterrows():
+
+for index, row in store_gate.iterrows():
 
     store_id = row["store_id"]
     gate_id = row["gate_id"]
 
+
+    # -----------------------------------------------------
+    # HISTORY FOR THIS STORE + GATE
+    # -----------------------------------------------------
+
     history = df[
         (df["store_id"] == store_id) &
         (df["gate_id"] == gate_id)
-    ].sort_values("date")
+    ].sort_values("date").copy()
 
 
     if history.empty:
         continue
 
 
-    lag1 = history["total_footfall"].iloc[-1]
+    footfall = history[
+        "total_footfall"
+    ].astype(float)
+
+
+    # -----------------------------------------------------
+    # LAGS
+    # -----------------------------------------------------
+
+    lag1 = (
+        footfall.iloc[-1]
+    )
 
     lag7 = (
-        history["total_footfall"].iloc[-7]
-        if len(history) >= 7
-        else lag1
+        footfall.iloc[-7]
+        if len(footfall) >= 7
+        else footfall.iloc[-1]
+    )
+
+    lag14 = (
+        footfall.iloc[-14]
+        if len(footfall) >= 14
+        else footfall.iloc[-1]
+    )
+
+    lag21 = (
+        footfall.iloc[-21]
+        if len(footfall) >= 21
+        else footfall.iloc[-1]
+    )
+
+    lag28 = (
+        footfall.iloc[-28]
+        if len(footfall) >= 28
+        else footfall.iloc[-1]
     )
 
     lag30 = (
-        history["total_footfall"].iloc[-30]
-        if len(history) >= 30
-        else lag1
+        footfall.iloc[-30]
+        if len(footfall) >= 30
+        else footfall.iloc[-1]
     )
 
-    rolling7 = history[
-        "total_footfall"
-    ].tail(min(7, len(history))).mean()
 
-    rolling30 = history[
-        "total_footfall"
-    ].tail(min(30, len(history))).mean()
+    # -----------------------------------------------------
+    # ROLLING FEATURES
+    # -----------------------------------------------------
 
+    rolling7 = (
+        footfall
+        .tail(min(7, len(footfall)))
+        .mean()
+    )
+
+    rolling14 = (
+        footfall
+        .tail(min(14, len(footfall)))
+        .mean()
+    )
+
+    rolling30 = (
+        footfall
+        .tail(min(30, len(footfall)))
+        .mean()
+    )
+
+
+    # -----------------------------------------------------
+    # TREND
+    # -----------------------------------------------------
+
+    trend = (
+        footfall.iloc[-1]
+        -
+        footfall.iloc[-min(7, len(footfall))]
+    )
+
+
+    # -----------------------------------------------------
+    # STORE MEAN
+    # -----------------------------------------------------
+
+    store_history = df[
+        df["store_id"] == store_id
+    ]
+
+    store_mean = (
+        store_history[
+            "total_footfall"
+        ].mean()
+    )
+
+
+    # -----------------------------------------------------
+    # GATE MEAN
+    # -----------------------------------------------------
+
+    gate_history = df[
+        df["gate_id"] == gate_id
+    ]
+
+    gate_mean = (
+        gate_history[
+            "total_footfall"
+        ].mean()
+    )
+
+
+    # -----------------------------------------------------
+    # STORE + WEEKDAY MEAN
+    # -----------------------------------------------------
+
+    prediction_weekday = (
+        selected_date.weekday()
+    )
+
+    store_weekday_history = df[
+        (df["store_id"] == store_id) &
+        (df["weekday"] == prediction_weekday)
+    ]
+
+    if len(store_weekday_history) > 0:
+
+        store_weekday_mean = (
+            store_weekday_history[
+                "total_footfall"
+            ].mean()
+        )
+
+    else:
+
+        store_weekday_mean = store_mean
+
+
+    # -----------------------------------------------------
+    # GATE + WEEKDAY MEAN
+    # -----------------------------------------------------
+
+    gate_weekday_history = df[
+        (df["gate_id"] == gate_id) &
+        (df["weekday"] == prediction_weekday)
+    ]
+
+    if len(gate_weekday_history) > 0:
+
+        gate_weekday_mean = (
+            gate_weekday_history[
+                "total_footfall"
+            ].mean()
+        )
+
+    else:
+
+        gate_weekday_mean = gate_mean
+
+
+    # -----------------------------------------------------
+    # ZERO FEATURES
+    # -----------------------------------------------------
+
+    zero_lag1 = int(
+        lag1 == 0
+    )
+
+    zero_lag7 = int(
+        lag7 == 0
+    )
+
+    recent7 = footfall.tail(
+        min(7, len(footfall))
+    )
+
+    recent30 = footfall.tail(
+        min(30, len(footfall))
+    )
+
+    zero_count7 = int(
+        (recent7 == 0).sum()
+    )
+
+    zero_count30 = int(
+        (recent30 == 0).sum()
+    )
+
+
+    # -----------------------------------------------------
+    # CALENDAR FOR PREDICTION DATE
+    # -----------------------------------------------------
+
+    year = selected_date.year
+
+    month = selected_date.month
+
+    day = selected_date.day
 
     weekday = selected_date.weekday()
+
+    week = int(
+        selected_date.isocalendar().week
+    )
+
+    quarter = selected_date.quarter
+
+    is_weekend = int(
+        weekday >= 5
+    )
+
+    holiday = int(
+        selected_date.date()
+        in india_holidays
+    )
+
+
+    weekday_sin = np.sin(
+        2 * np.pi * weekday / 7
+    )
+
+    weekday_cos = np.cos(
+        2 * np.pi * weekday / 7
+    )
+
+    month_sin = np.sin(
+        2 * np.pi * month / 12
+    )
+
+    month_cos = np.cos(
+        2 * np.pi * month / 12
+    )
+
+
+    is_month_start = int(
+        selected_date.is_month_start
+    )
+
+    is_month_end = int(
+        selected_date.is_month_end
+    )
+
+    is_quarter_start = int(
+        selected_date.is_quarter_start
+    )
+
+    is_quarter_end = int(
+        selected_date.is_quarter_end
+    )
+
+
+    # -----------------------------------------------------
+    # CREATE INPUT ROW
+    # -----------------------------------------------------
 
     input_data = pd.DataFrame({
 
@@ -132,118 +493,263 @@ for _, row in store_gate.iterrows():
 
         "gate_id": [gate_id],
 
-        "year": [selected_date.year],
+        "year": [year],
 
-        "month": [selected_date.month],
+        "month": [month],
 
-        "day": [selected_date.day],
+        "day": [day],
 
         "weekday": [weekday],
 
-        "week": [
-            int(selected_date.isocalendar().week)
-        ],
+        "week": [week],
 
-        "quarter": [selected_date.quarter],
+        "quarter": [quarter],
 
-        "is_weekend": [
-            1 if weekday >= 5 else 0
-        ],
+        "is_weekend": [is_weekend],
 
-        "holiday": [
-            1 if selected_date in india_holidays
-            else 0
-        ],
+        "holiday": [holiday],
+
+        "weekday_sin": [weekday_sin],
+
+        "weekday_cos": [weekday_cos],
+
+        "month_sin": [month_sin],
+
+        "month_cos": [month_cos],
 
         "lag1": [lag1],
 
         "lag7": [lag7],
 
+        "lag14": [lag14],
+
+        "lag21": [lag21],
+
+        "lag28": [lag28],
+
         "lag30": [lag30],
 
         "rolling7": [rolling7],
 
-        "rolling30": [rolling30]
+        "rolling14": [rolling14],
+
+        "rolling30": [rolling30],
+
+        "trend": [trend],
+
+        "store_mean": [store_mean],
+
+        "gate_mean": [gate_mean],
+
+        "store_weekday_mean": [
+            store_weekday_mean
+        ],
+
+        "gate_weekday_mean": [
+            gate_weekday_mean
+        ],
+
+        "is_month_start": [
+            is_month_start
+        ],
+
+        "is_month_end": [
+            is_month_end
+        ],
+
+        "is_quarter_start": [
+            is_quarter_start
+        ],
+
+        "is_quarter_end": [
+            is_quarter_end
+        ],
+
     })
 
 
-    prediction = float(
-        model.predict(
-            input_data[features]
-        )[0]
+    # -----------------------------------------------------
+    # SAFETY CHECK
+    # -----------------------------------------------------
+
+    missing = [
+        feature
+        for feature in features
+        if feature not in input_data.columns
+    ]
+
+    if missing:
+
+        print(
+            "Missing features:",
+            missing
+        )
+
+        failed += 1
+
+        continue
+
+
+    # -----------------------------------------------------
+    # PREDICT
+    # -----------------------------------------------------
+
+    try:
+
+        prediction = float(
+            model.predict(
+                input_data[features]
+            )[0]
+        )
+
+    except Exception as e:
+
+        print(
+            f"Prediction failed for "
+            f"{store_id}-{gate_id}: {e}"
+        )
+
+        failed += 1
+
+        continue
+
+
+    # -----------------------------------------------------
+    # NO NEGATIVE FOOTFALL
+    # -----------------------------------------------------
+
+    prediction = max(
+        0,
+        prediction
     )
 
 
-    # Don't allow negative prediction
-    prediction = max(0, prediction)
-
+    # -----------------------------------------------------
+    # SAVE RESULT
+    # -----------------------------------------------------
 
     all_predictions.append({
 
-        "date": selected_date.strftime(
-            "%Y-%m-%d"
-        ),
+        "date":
+            selected_date.strftime(
+                "%Y-%m-%d"
+            ),
 
-        "store_id": store_id,
+        "store_id":
+            int(store_id),
 
-        "gate_id": gate_id,
+        "gate_id":
+            int(gate_id),
 
-        "predicted": round(
-            prediction,
-            2
-        )
+        "predicted":
+            round(
+                prediction,
+                2
+            )
+
     })
 
 
-# -----------------------------
+    if (index + 1) % 100 == 0:
+
+        print(
+            f"Processed "
+            f"{index + 1}/{len(store_gate)}"
+        )
+
+
+# =========================================================
 # CREATE DATAFRAME
-# -----------------------------
+# =========================================================
 
 new_predictions = pd.DataFrame(
     all_predictions
 )
 
 
-# -----------------------------
-# SAVE / UPDATE PREDICTION LOG
-# -----------------------------
+print()
+print("=" * 60)
+print("PREDICTION COMPLETE")
+print("=" * 60)
 
-if os.path.exists(PREDICTION_LOG):
+print(
+    "New predictions:",
+    len(new_predictions)
+)
 
-    old = pd.read_csv(
+print(
+    "Failed:",
+    failed
+)
+
+
+# =========================================================
+# SAVE / UPDATE LOG
+# =========================================================
+
+if not new_predictions.empty:
+
+    if PREDICTION_LOG.exists():
+
+        old = pd.read_csv(
+            PREDICTION_LOG
+        )
+
+        combined = pd.concat(
+            [
+                old,
+                new_predictions
+            ],
+            ignore_index=True
+        )
+
+        combined = (
+            combined
+            .drop_duplicates(
+                subset=[
+                    "date",
+                    "store_id",
+                    "gate_id"
+                ],
+                keep="last"
+            )
+        )
+
+    else:
+
+        combined = new_predictions
+
+
+    combined.to_csv(
+        PREDICTION_LOG,
+        index=False
+    )
+
+
+    print()
+    print(
+        "Prediction log saved:"
+    )
+
+    print(
         PREDICTION_LOG
-    )
-
-    combined = pd.concat(
-        [old, new_predictions],
-        ignore_index=True
-    )
-
-    # Remove duplicate predictions
-    combined = combined.drop_duplicates(
-        subset=[
-            "date",
-            "store_id",
-            "gate_id"
-        ],
-        keep="last"
     )
 
 else:
 
-    combined = new_predictions
+    print()
+    print(
+        "No predictions were generated."
+    )
 
 
-combined.to_csv(
-    PREDICTION_LOG,
-    index=False
-)
+# =========================================================
+# SHOW SAMPLE
+# =========================================================
 
+if not new_predictions.empty:
 
-print(
-    f"✅ {len(new_predictions)} predictions saved."
-)
-
-print(
-    f"📁 {PREDICTION_LOG}"
-)
+    print()
+    print(
+        new_predictions.head(20)
+    )

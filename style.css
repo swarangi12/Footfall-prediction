@@ -17,7 +17,26 @@ h2,h3{
 p, label, span, div{
     color:#263238;
 }
+.filter-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 20px 0;
+}
 
+.filter-container label {
+    font-size: 17px;
+    font-weight: bold;
+}
+
+.filter-container select {
+    padding: 10px 14px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    background: white;
+    cursor: pointer;
+}
 
 div[data-testid="stMarkdownContainer"]{
     color:#263238 !important;
