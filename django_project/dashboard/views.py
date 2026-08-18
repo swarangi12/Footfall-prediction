@@ -47,6 +47,7 @@ def weekly_report(request):
 
     try:
        df = pd.read_csv(csv_path)
+       pred = df.copy()
 
     except FileNotFoundError:
 

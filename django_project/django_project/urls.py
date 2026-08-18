@@ -1,7 +1,7 @@
-from django.urls import path
-from . import views
+from django.contrib import admin
+from django.urls import path, include
 
 urlpatterns = [
-    path("", views.weekly_report, name="home"),
-    path("weekly-report/", views.weekly_report, name="weekly-report"),
+    path("admin/", admin.site.urls),
+    path("", include("dashboard.urls")),
 ]

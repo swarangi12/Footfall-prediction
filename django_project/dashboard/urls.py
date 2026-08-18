@@ -1,13 +1,7 @@
 from django.urls import path
-from .views import weekly_report
-
+from . import views
 
 urlpatterns = [
-
-    path(
-        "weekly-report/",
-        weekly_report,
-        name="weekly_report"
-    ),
-
+    path("", views.weekly_report, name="home"),
+    path("weekly-report/", views.weekly_report, name="weekly-report"),
 ]
