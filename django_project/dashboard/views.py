@@ -4,6 +4,8 @@ import numpy as np
 from django.shortcuts import render
 from .models import DailyHourlyFootfall
 from django.db.models import Sum
+import os
+from django.conf import settings
 
 
 def dashboard(request):
@@ -40,12 +42,11 @@ def weekly_report(request):
     # 1. PREDICTION CSV
     # =========================================================
 
-    prediction_path = (
-        r"C:\Users\swara\Downloads\footfall\prediction_log.csv"
-    )
+    csv_path = os.path.join(settings.BASE_DIR, "prediction_log.csv")
+    
 
     try:
-        pred = pd.read_csv(prediction_path)
+       df = pd.read_csv(csv_path)
 
     except FileNotFoundError:
 
