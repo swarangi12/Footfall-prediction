@@ -74,7 +74,10 @@ def weekly_report(request):
 
     if os.path.exists(actual_file):
         actual_df = pd.read_csv(actual_file)
-        actual_df["date"] = pd.to_datetime(actual_df["date"])
+        actual_df["date"] = pd.to_datetime(
+            actual_df["date"], errors="coerce"
+        )
+        actual_df = actual_df.dropna(subset=["date"])
         actual_df = (
             actual_df.groupby(["date", "store_id"])["total_footfall"]
             .sum()
