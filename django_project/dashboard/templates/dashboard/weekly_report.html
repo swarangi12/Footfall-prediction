@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Weekly Footfall Report</title>
+    <title>Footfall Report</title>
 
     <style>
         body {
@@ -28,7 +28,7 @@
             margin-bottom: 30px;
         }
 
-        .header h1 {
+        .header h2 {
             margin: 0;
             font-size: 40px;
             color: #111827;
@@ -40,55 +40,12 @@
             color: #4b5563;
         }
 
-        .cards {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 24px;
-            margin-bottom: 32px;
-        }
-
-        .card {
-            background: white;
-            border-radius: 18px;
-            padding: 30px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
-        }
-
-        .card-title {
-            color: #6b7280;
-            font-size: 18px;
-            margin-bottom: 14px;
-        }
-
-        .card-value {
-            font-size: 36px;
-            font-weight: bold;
-        }
-
-        .available {
-            color: #16a34a;
-        }
-
-        .error-box {
-            background: #fee2e2;
-            color: #991b1b;
-            padding: 20px;
-            border-radius: 10px;
-            margin-bottom: 25px;
-            font-size: 17px;
-        }
-
         .report-section {
             background: white;
             border-radius: 18px;
             padding: 30px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.08);
             overflow-x: auto;
-        }
-
-        .report-section h2 {
-            margin-top: 0;
-            font-size: 32px;
         }
 
         table {
@@ -115,11 +72,6 @@
             background: #f9fafb;
         }
 
-        .na {
-            color: #6b7280;
-            font-style: italic;
-        }
-
         .back-button {
             display: inline-block;
             margin-top: 25px;
@@ -136,11 +88,7 @@
         }
 
         @media (max-width: 900px) {
-            .cards {
-                grid-template-columns: 1fr;
-            }
-
-            .header h1 {
+            .header h2 {
                 font-size: 30px;
             }
         }
@@ -151,237 +99,96 @@
 
 <div class="container">
 
-    <!-- =====================================================
-         HEADER
-    ====================================================== -->
-
     <div class="header">
 
-        <h2>Weekly Footfall Report</h2>
+        <h2>Footfall Report</h2>
 
-<p>
-    Week:
-    {{ week_start|date:"d M Y" }}
-    -
-    {{ week_end|date:"d M Y" }}
-</p>
+        <p>Total records: {{ total_rows }}</p>
 
+        <br>
 
-<!-- ============================= -->
-<!-- VARIATION FILTER -->
-<!-- ============================= -->
+        <form method="GET">
 
-<form method="GET">
+            <label for="variation">
+                <strong>Variation:</strong>
+            </label>
 
-    <label for="variation">
-        <strong>Variation:</strong>
-    </label>
-
-    <select
-        name="variation"
-        id="variation"
-        onchange="this.form.submit()"
-    >
-
-        {% for value, label in variation_options %}
-
-            <option
-                value="{{ value }}"
-                {% if variation_filter == value %}
-                    selected
-                {% endif %}
+            <select
+                name="variation"
+                id="variation"
+                onchange="this.form.submit()"
             >
-                {{ label }}
-            </option>
 
-        {% endfor %}
+                {% for value, label in variation_options %}
 
-    </select>
+                    <option
+                        value="{{ value }}"
+                        {% if variation_filter == value %}
+                            selected
+                        {% endif %}
+                    >
+                        {{ label }}
+                    </option>
 
-</form>
+                {% endfor %}
 
+            </select>
 
-<br>
+        </form>
 
+    </div>
 
-<!-- ============================= -->
-<!-- WEEKLY TABLE -->
-<!-- ============================= -->
+    <div class="report-section">
 
-<div style="overflow-x:auto;">
+        <table border="1" cellpadding="8" cellspacing="0">
 
-<table border="1" cellpadding="8" cellspacing="0">
+            <thead>
+                <tr>
+                    <th>Store ID</th>
+                    <th>Store Name</th>
+                    <th>Date</th>
+                    <th>Day</th>
+                    <th>Predicted</th>
+                    <th>Actual</th>
+                    <th>Variation (%)</th>
+                </tr>
+            </thead>
 
-    <thead>
+            <tbody>
 
-        <tr>
+                {% for row in rows %}
 
-            <th>Store ID</th>
-            <th>Store Name</th>
+                <tr>
+                    <td>{{ row.store_id }}</td>
+                    <td>{{ row.store_name }}</td>
+                    <td>{{ row.date }}</td>
+                    <td>{{ row.day }}</td>
+                    <td>{{ row.predicted }}</td>
+                    <td>{{ row.actual }}</td>
+                    <td>{{ row.variation }}%</td>
+                </tr>
 
-            <th colspan="3">
-                Monday<br>
-                {{ week_start|date:"d-M-Y" }}
-            </th>
+                {% empty %}
 
-            <th colspan="3">
-                Tuesday<br>
-                {{ week_start|date:"d-M-Y" }}
-            </th>
+                <tr>
+                    <td colspan="7">
+                        No data found for the selected filter.
+                    </td>
+                </tr>
 
-            <th colspan="3">
-                Wednesday<br>
-                {{ week_start|date:"d-M-Y" }}
-            </th>
+                {% endfor %}
 
-            <th colspan="3">
-                Thursday<br>
-                {{ week_start|date:"d-M-Y" }}
-            </th>
+            </tbody>
 
-            <th colspan="3">
-                Friday<br>
-                {{ week_start|date:"d-M-Y" }}
-            </th>
+        </table>
 
-            <th colspan="3">
-                Saturday<br>
-                {{ week_start|date:"d-M-Y" }}
-            </th>
-
-            <th colspan="3">
-                Sunday<br>
-                {{ week_start|date:"d-M-Y" }}
-            </th>
-
-        </tr>
-
-
-        <tr>
-
-            <th></th>
-            <th></th>
-
-            <th>Predicted</th>
-            <th>Actual</th>
-            <th>Variation (%)</th>
-
-            <th>Predicted</th>
-            <th>Actual</th>
-            <th>Variation (%)</th>
-
-            <th>Predicted</th>
-            <th>Actual</th>
-            <th>Variation (%)</th>
-
-            <th>Predicted</th>
-            <th>Actual</th>
-            <th>Variation (%)</th>
-
-            <th>Predicted</th>
-            <th>Actual</th>
-            <th>Variation (%)</th>
-
-            <th>Predicted</th>
-            <th>Actual</th>
-            <th>Variation (%)</th>
-
-            <th>Predicted</th>
-            <th>Actual</th>
-            <th>Variation (%)</th>
-
-        </tr>
-
-    </thead>
-
-
-    <tbody>
-
-        {% for store in stores %}
-
-        <tr>
-
-            <td>{{ store.store_id }}</td>
-
-            <td>{{ store.store_name }}</td>
-
-
-            <!-- MONDAY -->
-
-            <td>{{ store.mon_predicted }}</td>
-            <td>{{ store.mon_actual }}</td>
-            <td>{{ store.mon_variation }}%</td>
-
-
-            <!-- TUESDAY -->
-
-            <td>{{ store.tue_predicted }}</td>
-            <td>{{ store.tue_actual }}</td>
-            <td>{{ store.tue_variation }}%</td>
-
-
-            <!-- WEDNESDAY -->
-
-            <td>{{ store.wed_predicted }}</td>
-            <td>{{ store.wed_actual }}</td>
-            <td>{{ store.wed_variation }}%</td>
-
-
-            <!-- THURSDAY -->
-
-            <td>{{ store.thu_predicted }}</td>
-            <td>{{ store.thu_actual }}</td>
-            <td>{{ store.thu_variation }}%</td>
-
-
-            <!-- FRIDAY -->
-
-            <td>{{ store.fri_predicted }}</td>
-            <td>{{ store.fri_actual }}</td>
-            <td>{{ store.fri_variation }}%</td>
-
-
-            <!-- SATURDAY -->
-
-            <td>{{ store.sat_predicted }}</td>
-            <td>{{ store.sat_actual }}</td>
-            <td>{{ store.sat_variation }}%</td>
-
-
-            <!-- SUNDAY -->
-
-            <td>{{ store.sun_predicted }}</td>
-            <td>{{ store.sun_actual }}</td>
-            <td>{{ store.sun_variation }}%</td>
-
-        </tr>
-
-        {% empty %}
-
-        <tr>
-            <td colspan="23">
-                No data found for the selected week/filter.
-            </td>
-        </tr>
-
-        {% endfor %}
-
-    </tbody>
-
-</table>
-
-</div>
-
-
-    <!-- =====================================================
-         BACK BUTTON
-    ====================================================== -->
+    </div>
 
     <a
         href="/"
         class="back-button"
     >
-        ← Back to Dashboard
+        &larr; Back to Dashboard
     </a>
 
 </div>

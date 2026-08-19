@@ -135,29 +135,6 @@ def weekly_report(request):
         df["store_name"] = df["store_id"].astype(str)
 
     # ---------------------------------
-    # WEEK START / END
-    # ---------------------------------
-
-    selected_date = request.GET.get("date")
-
-    if selected_date:
-        selected_date = pd.to_datetime(selected_date)
-    else:
-        selected_date = df["date"].max()
-
-    # Monday of selected week
-    week_start = selected_date - pd.Timedelta(
-        days=selected_date.weekday()
-    )
-
-    week_end = week_start + pd.Timedelta(days=6)
-
-    weekly_df = df[
-        (df["date"] >= week_start) &
-        (df["date"] <= week_end)
-    ].copy()
-
-    # ---------------------------------
     # VARIATION FILTER
     # ---------------------------------
 
@@ -167,133 +144,54 @@ def weekly_report(request):
     )
 
     # ---------------------------------
-    # CREATE ONE ROW PER STORE
+    # BUILD ROWS (one per store per date)
     # ---------------------------------
 
-    stores = []
+    df = df.sort_values(["store_id", "date"])
 
-    for (store_id, store_name), group in weekly_df.groupby(
-        ["store_id", "store_name"]
-    ):
+    rows = []
 
-        row = {
-            "store_id": store_id,
-            "store_name": store_name
-        }
+    for _, r in df.iterrows():
+        predicted = int(r["predicted"])
+        actual = int(r["actual"])
+        variation = int(r["variation"])
 
-        for day_number in range(7):
-
-            current_date = week_start + pd.Timedelta(
-                days=day_number
-            )
-
-            day_name = current_date.strftime("%a").lower()
-
-            day_data = group[
-                group["date"].dt.date
-                == current_date.date()
-            ]
-
-            if len(day_data) > 0:
-
-                predicted = day_data["predicted"].sum()
-                actual = day_data["actual"].sum()
-
-                if actual != 0:
-                    variation = (
-                        abs(actual - predicted)
-                        / actual
-                        * 100
-                    )
-                else:
-                    variation = 0
-
-                row[f"{day_name}_predicted"] = round(
-                    predicted
-                )
-
-                row[f"{day_name}_actual"] = round(
-                    actual
-                )
-
-                row[f"{day_name}_variation"] = round(
-                    variation
-                )
-
+        if variation_filter != "all":
+            if variation_filter == "0-10":
+                minimum, maximum = 0, 10
+            elif variation_filter == "11-15":
+                minimum, maximum = 11, 15
+            elif variation_filter == "16-20":
+                minimum, maximum = 16, 20
+            elif variation_filter == "21-25":
+                minimum, maximum = 21, 25
+            elif variation_filter == "26-30":
+                minimum, maximum = 26, 30
+            elif variation_filter == "30-plus":
+                minimum, maximum = 31, float("inf")
             else:
+                minimum, maximum = 0, float("inf")
 
-                row[f"{day_name}_predicted"] = 0
-                row[f"{day_name}_actual"] = 0
-                row[f"{day_name}_variation"] = 0
+            if not (minimum <= variation <= maximum):
+                continue
 
-        stores.append(row)
-
-    # ---------------------------------
-    # APPLY VARIATION FILTER
-    # ---------------------------------
-
-    if variation_filter != "all":
-
-        filtered_stores = []
-
-        if variation_filter == "0-10":
-            minimum = 0
-            maximum = 10
-
-        elif variation_filter == "11-15":
-            minimum = 11
-            maximum = 15
-
-        elif variation_filter == "16-20":
-            minimum = 16
-            maximum = 20
-
-        elif variation_filter == "21-25":
-            minimum = 21
-            maximum = 25
-
-        elif variation_filter == "26-30":
-            minimum = 26
-            maximum = 30
-
-        elif variation_filter == "30-plus":
-            minimum = 31
-            maximum = float("inf")
-
-        else:
-            minimum = 0
-            maximum = float("inf")
-
-        for store in stores:
-
-            variations = [
-                store["mon_variation"],
-                store["tue_variation"],
-                store["wed_variation"],
-                store["thu_variation"],
-                store["fri_variation"],
-                store["sat_variation"],
-                store["sun_variation"],
-            ]
-
-            # Keep store if at least one day's
-            # variation falls in selected range
-            if any(
-                minimum <= value <= maximum
-                for value in variations
-            ):
-                filtered_stores.append(store)
-
-        stores = filtered_stores
+        rows.append({
+            "store_id": r["store_id"],
+            "store_name": r["store_name"],
+            "date": r["date"].strftime("%d-%b-%Y"),
+            "day": r["date"].strftime("%A"),
+            "predicted": predicted,
+            "actual": actual,
+            "variation": variation,
+        })
 
     # ---------------------------------
     # CONTEXT
     # ---------------------------------
 
     context = {
-        "stores": stores,
-        "week_start": week_start,
-        "week_end": week_end,
+        "rows": rows,
+        "total_rows": len(rows),
         "variation_filter": variation_filter,
 
         "variation_options": [
