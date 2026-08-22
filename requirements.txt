@@ -9,3 +9,4 @@ holidays
 supabase
 gunicorn
 django
+psycopg[binary]>=3.2
