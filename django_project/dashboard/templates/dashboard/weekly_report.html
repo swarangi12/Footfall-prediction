@@ -1,12 +1,17 @@
 <!DOCTYPE html>
+
 <html lang="en">
+
 <head>
+
     <meta charset="UTF-8">
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <title>Footfall Report</title>
 
     <style>
+
         body {
             margin: 0;
             padding: 28px;
@@ -38,6 +43,57 @@
             margin: 10px 0 0;
             font-size: 20px;
             color: #4b5563;
+        }
+
+        .filter-form {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-top: 25px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .filter-group label {
+            font-size: 16px;
+        }
+
+        input[type="date"],
+        select {
+            padding: 12px 15px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 16px;
+            background: white;
+            min-width: 180px;
+        }
+
+        .filter-button {
+            margin-top: 27px;
+            padding: 12px 22px;
+            border: none;
+            border-radius: 8px;
+            background: #333;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .filter-button:hover {
+            background: #111;
+        }
+
+        .date-range {
+            margin-top: 20px;
+            padding: 14px 18px;
+            background: #eef1f5;
+            border-radius: 8px;
+            font-size: 17px;
         }
 
         .report-section {
@@ -88,16 +144,31 @@
         }
 
         @media (max-width: 900px) {
+
             .header h2 {
                 font-size: 30px;
             }
+
+            .filter-form {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .filter-button {
+                margin-top: 0;
+            }
+
         }
+
     </style>
+
 </head>
 
 <body>
 
 <div class="container">
+
+    <!-- HEADER -->
 
     <div class="header">
 
@@ -105,93 +176,253 @@
 
         <p>Total records: {{ total_rows }}</p>
 
-        <br>
 
-        <form method="GET">
+        <!-- DATE + VARIATION FILTER -->
 
-            <label for="variation">
-                <strong>Variation:</strong>
-            </label>
+        <form method="GET" class="filter-form">
 
-            <select
-                name="variation"
-                id="variation"
-                onchange="this.form.submit()"
+
+            <!-- CALENDAR -->
+
+            <div class="filter-group">
+
+                <label for="date">
+
+                    <strong>Select Start Date:</strong>
+
+                </label>
+
+                <input
+                    type="date"
+                    id="date"
+                    name="date"
+                    value="{{ selected_date }}"
+                >
+
+            </div>
+
+
+            <!-- VARIATION DROPDOWN -->
+
+            <div class="filter-group">
+
+                <label for="variation">
+
+                    <strong>Variation:</strong>
+
+                </label>
+
+                <select
+                    name="variation"
+                    id="variation"
+                >
+
+                    {% for value, label in variation_options %}
+
+                        <option
+                            value="{{ value }}"
+
+                            {% if variation_filter == value %}
+                                selected
+                            {% endif %}
+                        >
+
+                            {{ label }}
+
+                        </option>
+
+                    {% endfor %}
+
+                </select>
+
+            </div>
+
+
+            <!-- SUBMIT -->
+
+            <button
+                type="submit"
+                class="filter-button"
             >
+                Show 7 Days
+            </button>
 
-                {% for value, label in variation_options %}
-
-                    <option
-                        value="{{ value }}"
-                        {% if variation_filter == value %}
-                            selected
-                        {% endif %}
-                    >
-                        {{ label }}
-                    </option>
-
-                {% endfor %}
-
-            </select>
 
         </form>
 
+
+        <!-- SELECTED DATE RANGE -->
+
+        <div class="date-range">
+
+            Showing data from
+
+            <strong>{{ week_start }}</strong>
+
+            to
+
+            <strong>{{ week_end }}</strong>
+
+            <br><br>
+
+            <small>
+                Selected start date + next 6 days
+            </small>
+
+        </div>
+
+
     </div>
 
-    <div class="report-section">
 
-        <table border="1" cellpadding="8" cellspacing="0">
+    <!-- REPORT TABLE -->
 
-            <thead>
-                <tr>
-                    <th>Store ID</th>
-                    <th>Store Name</th>
-                    <th>Date</th>
-                    <th>Day</th>
-                    <th>Predicted</th>
-                    <th>Actual</th>
-                    <th>Variation (%)</th>
-                </tr>
-            </thead>
+    <!-- REPORT TABLE -->
+<!-- REPORT TABLE -->
+<div class="report-section">
 
-            <tbody>
+    <table class="weekly-table">
 
-                {% for row in rows %}
+        <thead>
 
-                <tr>
-                    <td>{{ row.store_id }}</td>
-                    <td>{{ row.store_name }}</td>
-                    <td>{{ row.date }}</td>
-                    <td>{{ row.day }}</td>
-                    <td>{{ row.predicted }}</td>
-                    <td>{{ row.actual }}</td>
-                    <td>{{ row.variation }}%</td>
-                </tr>
+            <!-- DAY HEADERS -->
+            <tr>
 
-                {% empty %}
+                <th
+                    rowspan="2"
+                    class="store-id-header"
+                >
+                    Store ID
+                </th>
 
-                <tr>
-                    <td colspan="7">
-                        No data found for the selected filter.
-                    </td>
-                </tr>
+                <th
+                    rowspan="2"
+                    class="store-name-header"
+                >
+                    Store Name
+                </th>
+
+                {% for day in week_dates %}
+
+                    <th
+                        colspan="3"
+                        class="day-header"
+                    >
+                        {{ day.name }} ({{ day.date }})
+                    </th>
 
                 {% endfor %}
 
-            </tbody>
+            </tr>
 
-        </table>
 
-    </div>
+            <!-- SUB HEADERS -->
+            <tr>
+
+                {% for day in week_dates %}
+
+                    <th class="sub-header">
+                        Predicted<br>footfall
+                    </th>
+
+                    <th class="sub-header">
+                        Actual<br>footfall
+                    </th>
+
+                    <th class="sub-header">
+                        Variation (%)
+                    </th>
+
+                {% endfor %}
+
+            </tr>
+
+        </thead>
+
+
+        <tbody>
+
+            {% for store in weekly_rows %}
+
+                <tr>
+
+                    <!-- STORE ID -->
+                    <td class="store-id-cell">
+                        {{ store.store_id }}
+                    </td>
+
+
+                    <!-- STORE NAME -->
+                    <td class="store-name-cell">
+                        {{ store.store_name }}
+                    </td>
+
+
+                    <!-- MONDAY -> SUNDAY -->
+                    {% for day in store.days %}
+
+                        <td>
+                            {{ day.predicted }}
+                        </td>
+
+                        <td>
+                            {{ day.actual }}
+                        </td>
+
+                        <td
+                            class="
+                                {% if day.variation != '-' %}
+                                    variation-cell
+                                {% endif %}
+                            "
+                        >
+                            {% if day.variation != '-' %}
+                                {{ day.variation }}%
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+
+                    {% endfor %}
+
+                </tr>
+
+            {% empty %}
+
+                <tr>
+
+                    <td
+                        colspan="23"
+                        class="no-data"
+                    >
+                        No data found for the selected
+                        date or filter.
+                    </td>
+
+                </tr>
+
+            {% endfor %}
+
+        </tbody>
+
+    </table>
+
+</div>
+
+    <!-- BACK BUTTON -->
 
     <a
         href="/"
         class="back-button"
     >
+
         &larr; Back to Dashboard
+
     </a>
+
 
 </div>
 
 </body>
+
 </html>
