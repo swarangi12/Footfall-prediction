@@ -27,5 +27,4 @@ class DailyHourlyFootfall(models.Model):
     total_footfall = models.IntegerField(default=0)
 
     class Meta:
-        managed = False
         db_table = "daily_hourly_footfall"
