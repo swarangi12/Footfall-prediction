@@ -1,584 +1,674 @@
+import os
+from datetime import datetime, timedelta
+
 import pandas as pd
 import numpy as np
 
 from django.shortcuts import render
-from .models import DailyHourlyFootfall
-from django.db.models import Sum
-import os
 from django.conf import settings
+from django.db import connection
 
+from .models import DailyHourlyFootfall
+
+
+# ============================================================
+# HELPER: GET PREDICTION FILE
+# ============================================================
+
+def get_prediction_file():
+    """
+    prediction_log.csv is located one level above django_project.
+    """
+
+    possible_paths = [
+        os.path.join(
+            settings.BASE_DIR,
+            "prediction_log.csv"
+        ),
+
+        os.path.join(
+            settings.BASE_DIR.parent,
+            "prediction_log.csv"
+        ),
+    ]
+
+    for path in possible_paths:
+        if os.path.exists(path):
+            return path
+
+    return possible_paths[1]
+
+
+# ============================================================
+# HELPER: GET WEEK START
+# ============================================================
+
+def get_week_start(request, prediction_file):
+
+    selected_date = request.GET.get("date")
+
+    # --------------------------------------------------------
+    # USER SELECTED DATE
+    # --------------------------------------------------------
+
+    if selected_date:
+
+        try:
+
+            selected = pd.to_datetime(
+                selected_date,
+                errors="coerce"
+            )
+
+            if not pd.isna(selected):
+
+                selected = selected.normalize()
+
+                # Monday of selected week
+                week_start = (
+                    selected
+                    - pd.Timedelta(
+                        days=selected.weekday()
+                    )
+                )
+
+                return week_start
+
+        except Exception:
+            pass
+
+    # --------------------------------------------------------
+    # DEFAULT:
+    # LATEST DATE FROM PREDICTION FILE
+    # --------------------------------------------------------
+
+    if os.path.exists(prediction_file):
+
+        try:
+
+            temp_df = pd.read_csv(
+                prediction_file,
+                usecols=["date"]
+            )
+
+            temp_df["date"] = pd.to_datetime(
+                temp_df["date"],
+                errors="coerce"
+            )
+
+            temp_df = temp_df.dropna(
+                subset=["date"]
+            )
+
+            if not temp_df.empty:
+
+                latest_date = (
+                    temp_df["date"]
+                    .max()
+                    .normalize()
+                )
+
+                return (
+                    latest_date
+                    - pd.Timedelta(
+                        days=latest_date.weekday()
+                    )
+                )
+
+        except Exception as e:
+
+            print(
+                "Could not determine date "
+                "from prediction file:",
+                e
+            )
+
+    # --------------------------------------------------------
+    # FALLBACK TO DATABASE
+    # --------------------------------------------------------
+
+    try:
+
+        latest_record = (
+            DailyHourlyFootfall.objects
+            .order_by("-date")
+            .first()
+        )
+
+        if latest_record:
+
+            latest_date = pd.Timestamp(
+                latest_record.date
+            ).normalize()
+
+            return (
+                latest_date
+                - pd.Timedelta(
+                    days=latest_date.weekday()
+                )
+            )
+
+    except Exception as e:
+
+        print(
+            "Could not determine latest "
+            "database date:",
+            e
+        )
+
+    # --------------------------------------------------------
+    # FINAL FALLBACK
+    # --------------------------------------------------------
+
+    today = pd.Timestamp.today().normalize()
+
+    return (
+        today
+        - pd.Timedelta(
+            days=today.weekday()
+        )
+    )
+
+
+# ============================================================
+# DASHBOARD
+# ============================================================
 
 def dashboard(request):
 
-    store_gate_data = (
-        DailyHourlyFootfall.objects
-        .values(
-            "store_id",
-            "gate_id"
-        )
-        .annotate(
-            footfall=Sum("total_footfall")
-        )
-        .order_by(
-            "store_id",
-            "gate_id"
-        )
-    )
+    prediction_file = get_prediction_file()
 
-    context = {
-        "store_gate_data": list(store_gate_data),
-    }
-
-    return render(
+    week_start = get_week_start(
         request,
-        "dashboard.html",
-        context
+        prediction_file
     )
 
+    # If a specific `date` query parameter is provided, align to Monday of that week
+    date_param = request.GET.get("date")
+    if date_param:
+        try:
+            param_date = pd.to_datetime(date_param, errors="coerce").normalize()
+            if not pd.isna(param_date):
+                week_start = param_date - pd.Timedelta(days=param_date.weekday())
+        except Exception:
+            pass
 
-def weekly_report(request):
+    week_end = week_start + pd.Timedelta(days=6)
 
-    # =========================================================
-    # 1. PREDICTION CSV
-    # =========================================================
+    print("\n")
+    print("=" * 70)
+    print("DASHBOARD")
+    print("=" * 70)
 
-    csv_path = os.path.join(settings.BASE_DIR, "prediction_log.csv")
-    
+    print(
+        "Week:",
+        week_start.strftime("%Y-%m-%d"),
+        "to",
+        week_end.strftime("%Y-%m-%d")
+    )
 
-    try:
-       df = pd.read_csv(csv_path)
-       pred = df.copy()
+    # --------------------------------------------------------
+    # LOAD PREDICTIONS & CSV ACTUALS
+    # --------------------------------------------------------
 
-    except FileNotFoundError:
+    pred_df = pd.DataFrame()
 
-        return render(
-            request,
-            "dashboard/weekly_report.html",
-            {
-                "error": (
-                    "prediction_log.csv not found. "
-                    "Please check the file path."
-                )
-            }
+    if os.path.exists(prediction_file):
+        try:
+            pred_df = pd.read_csv(prediction_file)
+            required_columns = ["date", "store_id", "gate_id", "predicted"]
+            missing = [col for col in required_columns if col not in pred_df.columns]
+
+            if not missing:
+                pred_df["date"] = pd.to_datetime(pred_df["date"], errors="coerce").dt.normalize()
+                pred_df["store_id"] = pd.to_numeric(pred_df["store_id"], errors="coerce")
+                pred_df["gate_id"] = pd.to_numeric(pred_df["gate_id"], errors="coerce")
+                pred_df["predicted"] = pd.to_numeric(pred_df["predicted"], errors="coerce").fillna(0)
+                
+                if "actual" in pred_df.columns:
+                    pred_df["actual"] = pd.to_numeric(pred_df["actual"], errors="coerce").fillna(0)
+                else:
+                    pred_df["actual"] = 0
+
+                pred_df = pred_df.dropna(subset=["date", "store_id"])
+                pred_df = pred_df[
+                    (pred_df["date"] >= week_start) & (pred_df["date"] <= week_end)
+                ].copy()
+            else:
+                print("Missing prediction columns:", missing)
+        except Exception as e:
+            print("Prediction file error:", e)
+
+    # --------------------------------------------------------
+    # PREDICTION & CSV ACTUALS GROUP BY STORE + GATE + DATE
+    # --------------------------------------------------------
+
+    if not pred_df.empty:
+        pred_grouped = (
+            pred_df.groupby(["date", "store_id", "gate_id"], as_index=False)[["predicted", "actual"]].sum()
         )
-
-    # Convert prediction columns
-
-    pred["date"] = pd.to_datetime(
-        pred["date"],
-        errors="coerce"
-    )
-
-    pred["store_id"] = pd.to_numeric(
-        pred["store_id"],
-        errors="coerce"
-    )
-
-    pred["gate_id"] = pd.to_numeric(
-        pred["gate_id"],
-        errors="coerce"
-    )
-
-    pred["predicted"] = pd.to_numeric(
-        pred["predicted"],
-        errors="coerce"
-    )
-
-    pred = pred.dropna(
-        subset=[
-            "date",
-            "store_id",
-            "gate_id",
-            "predicted"
-        ]
-    )
-
-    # Prediction cannot be negative
-
-    pred["predicted"] = pred["predicted"].clip(
-        lower=0
-    )
-
-
-    # =========================================================
-    # 2. HOURLY FIELD NAMES
-    # =========================================================
-
-    hourly_fields = [
-
-        "t7_00_8_00",
-        "t8_00_9_00",
-        "t9_00_10_00",
-        "t10_00_11_00",
-        "t11_00_12_00",
-        "t12_00_13_00",
-        "t13_00_14_00",
-        "t14_00_15_00",
-        "t15_00_16_00",
-        "t16_00_17_00",
-        "t17_00_18_00",
-        "t18_00_19_00",
-        "t19_00_20_00",
-        "t20_00_21_00",
-
-    ]
-
-
-    # =========================================================
-    # 3. LOAD ACTUAL + HOURLY DATA FROM DATABASE
-    # =========================================================
-
-    actual_data = list(
-        DailyHourlyFootfall.objects.values(
-            "date",
-            "store_id",
-            "gate_id",
-            "total_footfall",
-            *hourly_fields
-        )
-    )
-
-    actual = pd.DataFrame(actual_data)
-
-    if actual.empty:
-
-        return render(
-            request,
-            "dashboard/weekly_report.html",
-            {
-                "error": "No actual footfall data found."
-            }
-        )
-
-
-    # =========================================================
-    # 4. CLEAN ACTUAL DATA
-    # =========================================================
-
-    actual["date"] = pd.to_datetime(
-        actual["date"],
-        errors="coerce"
-    )
-
-    actual["store_id"] = pd.to_numeric(
-        actual["store_id"],
-        errors="coerce"
-    )
-
-    actual["gate_id"] = pd.to_numeric(
-        actual["gate_id"],
-        errors="coerce"
-    )
-
-    actual["actual"] = pd.to_numeric(
-        actual["total_footfall"],
-        errors="coerce"
-    )
-
-    actual = actual.dropna(
-        subset=[
-            "date",
-            "store_id",
-            "gate_id",
-            "actual"
-        ]
-    )
-
-
-    # =========================================================
-    # 5. CLEAN HOURLY VALUES
-    # =========================================================
-
-    for field in hourly_fields:
-
-        actual[field] = pd.to_numeric(
-            actual[field],
-            errors="coerce"
-        ).fillna(0)
-
-
-    # =========================================================
-    # 6. MERGE PREDICTION + ACTUAL
-    # =========================================================
-
-    merge_columns = [
-        "date",
-        "store_id",
-        "gate_id"
-    ]
-
-    actual_columns = (
-        merge_columns
-        + ["actual"]
-        + hourly_fields
-    )
-
-    df = pd.merge(
-
-        pred[
-            merge_columns
-            + ["predicted"]
-        ],
-
-        actual[
-            actual_columns
-        ],
-
-        on=merge_columns,
-
-        how="inner"
-    )
-
-
-    if df.empty:
-
-        return render(
-            request,
-            "dashboard/weekly_report.html",
-            {
-                "error": (
-                    "No matching prediction and actual "
-                    "records were found."
-                )
-            }
-        )
-
-
-    # =========================================================
-    # 7. CALCULATE ERRORS
-    # =========================================================
-
-    df["absolute_error"] = (
-        df["predicted"]
-        -
-        df["actual"]
-    ).abs()
-
-
-    # Error % is NOT calculated when actual = 0
-    #
-    # This prevents misleading values such as:
-    #
-    # Actual = 0
-    # Predicted = 120
-    #
-    # from becoming 12000%.
-
-    df["error_percent"] = np.where(
-
-        df["actual"] > 0,
-
-        (
-            df["absolute_error"]
-            /
-            df["actual"]
-            *
-            100
-        ),
-
-        np.nan
-    )
-
-
-    # =========================================================
-    # 8. MAE
-    # =========================================================
-
-    mae = df["absolute_error"].mean()
-
-
-    # =========================================================
-    # 9. MAPE
-    # =========================================================
-
-    positive_actual = (
-        df["actual"] > 0
-    )
-
-    if positive_actual.any():
-
-        mape = (
-
-            df.loc[
-                positive_actual,
-                "absolute_error"
-            ]
-
-            /
-
-            df.loc[
-                positive_actual,
-                "actual"
-            ]
-
-        ).mean() * 100
-
+        pred_grouped["store_id"] = pred_grouped["store_id"].astype(int).astype(str)
+        pred_grouped["gate_id"] = pred_grouped["gate_id"].astype(int).astype(str)
+        pred_grouped["date"] = pd.to_datetime(pred_grouped["date"]).dt.strftime("%Y-%m-%d")
     else:
+        pred_grouped = pd.DataFrame(columns=["date", "store_id", "gate_id", "predicted", "actual"])
 
-        mape = np.nan
+    # --------------------------------------------------------
+    # ACTUAL DATA FROM DATABASE
+    # --------------------------------------------------------
+
+    actual_df = get_actual_data(week_start, week_end)
+    if not actual_df.empty:
+        actual_df["store_id"] = actual_df["store_id"].astype(int).astype(str)
+        actual_df["gate_id"] = actual_df["gate_id"].astype(int).astype(str)
+        actual_df["date"] = pd.to_datetime(actual_df["date"]).dt.strftime("%Y-%m-%d")
+
+    # --------------------------------------------------------
+    # MERGE (OUTER JOIN ON date, store_id, gate_id)
+    # --------------------------------------------------------
+
+    if not pred_grouped.empty and not actual_df.empty:
+        df = pd.merge(
+            pred_grouped,
+            actual_df,
+            on=["date", "store_id", "gate_id"],
+            how="outer",
+            suffixes=("_csv", "_db")
+        )
+        if "actual_csv" in df.columns and "actual_db" in df.columns:
+            df["actual"] = np.where(df["actual_csv"] > 0, df["actual_csv"], df["actual_db"])
+        elif "actual_csv" in df.columns:
+            df["actual"] = df["actual_csv"]
+        elif "actual_db" in df.columns:
+            df["actual"] = df["actual_db"]
+    elif not pred_grouped.empty:
+        df = pred_grouped.copy()
+    elif not actual_df.empty:
+        df = actual_df.copy()
+        df["predicted"] = 0
+    else:
+        df = pd.DataFrame(columns=["date", "store_id", "gate_id", "predicted", "actual"])
+
+    df["predicted"] = pd.to_numeric(df["predicted"], errors="coerce").fillna(0)
+    df["actual"] = pd.to_numeric(df["actual"], errors="coerce").fillna(0)
 
 
-    # =========================================================
-    # 10. RMSE
-    # =========================================================
+    # --------------------------------------------------------
+    # VARIATION
+    # --------------------------------------------------------
 
-    rmse = np.sqrt(
+    if not df.empty:
 
-        (
-            df["predicted"]
-            -
-            df["actual"]
-        ) ** 2
-
-    ).mean()
-
-    # Correct RMSE calculation
-
-    rmse = np.sqrt(
-
-        (
-            df["predicted"]
-            -
-            df["actual"]
-        ) ** 2
-    ).mean()
-
-    # Actually calculate root mean squared error
-
-    rmse = np.sqrt(
-        (
+        df["variation"] = np.where(
+            df["actual"] == 0,
+            "NA",
             (
-                df["predicted"]
-                -
-                df["actual"]
-            ) ** 2
-        ).mean()
-    )
-
-
-    # =========================================================
-    # 11. R2
-    # =========================================================
-
-    actual_mean = df["actual"].mean()
-
-    ss_total = (
-        (
-            df["actual"]
-            -
-            actual_mean
-        ) ** 2
-    ).sum()
-
-    ss_residual = (
-        (
-            df["actual"]
-            -
-            df["predicted"]
-        ) ** 2
-    ).sum()
-
-    if ss_total != 0:
-
-        r2 = 1 - (
-            ss_residual
-            /
-            ss_total
+                (
+                    abs(
+                        df["predicted"]
+                        -
+                        df["actual"]
+                    )
+                    /
+                    df["actual"]
+                )
+                * 100
+            )
         )
 
-    else:
-
-        r2 = np.nan
-
-
-    # =========================================================
-    # 12. ROUND VALUES
-    # =========================================================
-
-    df["predicted"] = (
-        df["predicted"]
-        .round(2)
-    )
-
-    df["actual"] = (
-        df["actual"]
-        .round(2)
-    )
-
-    df["absolute_error"] = (
-        df["absolute_error"]
-        .round(2)
-    )
-
-    df["error_percent"] = (
-        df["error_percent"]
-        .round(2)
-    )
-
-
-    # =========================================================
-    # 13. ROUND HOURLY VALUES
-    # =========================================================
-
-    for field in hourly_fields:
-
-        df[field] = (
-            df[field]
-            .fillna(0)
-            .round(0)
-            .astype(int)
+        df["variation"] = df[
+            "variation"
+        ].apply(
+            lambda x:
+                "NA"
+                if x == "NA"
+                else round(float(x), 2)
         )
 
+    # --------------------------------------------------------
+    # WEEK DATES
+    # --------------------------------------------------------
 
-    # =========================================================
-    # 14. SORT
-    # =========================================================
+    week_dates = []
 
-    df = df.sort_values(
-        "date",
-        ascending=False
-    )
+    for i in range(7):
 
+        current_date = (
+            week_start
+            + pd.Timedelta(days=i)
+        )
 
-    # =========================================================
-    # 15. CREATE TABLE DATA
-    # =========================================================
+        week_dates.append(
+            {
+                "name": current_date.strftime(
+                    "%A"
+                ),
 
-    table_data = []
+                "date": current_date.strftime(
+                    "%d-%b-%Y"
+                ),
 
+                "raw_date": current_date.strftime(
+                    "%Y-%m-%d"
+                )
+            }
+        )
+
+    # --------------------------------------------------------
+    # BUILD LOOKUP
+    # --------------------------------------------------------
+
+    # Build lookup and store_gate_pairs
+    data_lookup = {}
+    store_gate_pairs = set()
 
     for _, row in df.iterrows():
+        store_id = str(int(row["store_id"]))
+        # Ensure gate_id is a string (empty if missing)
+        gate_id = (
+            str(int(row["gate_id"]))
+            if not pd.isna(row.get("gate_id"))
+            else ""
+        )
+        date_key = pd.Timestamp(row["date"]).strftime("%Y-%m-%d")
+        data_lookup[(store_id, gate_id, date_key)] = {
+            "predicted": round(float(row["predicted"]), 2),
+            "actual": round(float(row["actual"]), 2),
+            "variation": row["variation"],
+        }
+        store_gate_pairs.add((store_id, gate_id))
+    # Debug: print sample record for store 272 on 2026-06-17
+    sample_key = ("272", "2026-06-17")
+    if sample_key in data_lookup:
+        print("Sample record for store 272 on 2026-06-17:", data_lookup[sample_key])
 
-        # -----------------------------------------------------
-        # Error percentage
-        # -----------------------------------------------------
 
-        if pd.isna(
-            row["error_percent"]
-        ):
+    # --------------------------------------------------------
+    # STORE LIST & VARIATION FILTER
+    # --------------------------------------------------------
+    variation_filter = request.GET.get(
+        "variation",
+        "all"
+    )
 
-            error_percent_display = "N/A"
+    def variation_matches(value):
+        if value == "NA":
+            return variation_filter == "all"
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            return variation_filter == "all"
 
-        else:
+        if variation_filter == "all":
+            return True
+        if variation_filter == "0-10":
+            return 0 <= value <= 10
+        if variation_filter == "11-15":
+            return 11 <= value <= 15
+        if variation_filter == "16-20":
+            return 16 <= value <= 20
+        if variation_filter == "21-25":
+            return 21 <= value <= 25
+        if variation_filter == "26-30":
+            return 26 <= value <= 30
+        if variation_filter == "30-plus":
+            return value > 30
 
-            error_percent_display = (
-                f'{row["error_percent"]:.2f}%'
-            )
+        return True
 
+    # Build a sorted list of (store_id, gate_id) tuples from the lookup
+    sorted_store_gate_pairs = sorted(
+        list(store_gate_pairs),
+        key=lambda x: (int(x[0]), int(x[1]) if x[1] != "" else -1)
+    )
 
-        # -----------------------------------------------------
-        # Basic row
-        # -----------------------------------------------------
+    # --------------------------------------------------------
+    # BUILD WEEKLY ROWS
+    # --------------------------------------------------------
+    weekly_rows = []
 
-        row_data = {
-
-            "date": row["date"].strftime(
-                "%Y-%m-%d"
-            ),
-
-            "store_id": int(
-                row["store_id"]
-            ),
-
-            "gate_id": int(
-                row["gate_id"]
-            ),
-
-            "predicted": float(
-                row["predicted"]
-            ),
-
-            "actual": float(
-                row["actual"]
-            ),
-
-            "absolute_error": float(
-                row["absolute_error"]
-            ),
-
-            "error_percent":
-                error_percent_display
+    for store_id, gate_id in sorted_store_gate_pairs:
+        store_row = {
+            "store_id": store_id,
+            "gate_id": gate_id,
+            "days": []
         }
 
+        for day in week_dates:
+            lookup_key = (store_id, gate_id, day["raw_date"])
+            record = data_lookup.get(lookup_key)
 
-        # -----------------------------------------------------
-        # Add all hourly fields
-        # -----------------------------------------------------
+            if record:
+                matches = variation_matches(record["variation"])
+                if matches:
+                    day_data = {
+                        "predicted": record["predicted"],
+                        "actual": record["actual"],
+                        "variation": record["variation"],
+                        "variation_display": f"{record['variation']}%" if record["variation"] is not None else "NA%",
+                        "show": True,
+                    }
+                else:
+                    day_data = {
+                        "predicted": "-",
+                        "actual": "-",
+                        "variation": "-",
+                        "variation_display": "-",
+                        "show": False,
+                    }
+            else:
+                day_data = {
+                    "predicted": "-",
+                    "actual": "-",
+                    "variation": "-",
+                    "variation_display": "-",
+                    "show": False,
+                }
 
-        for field in hourly_fields:
+            store_row["days"].append(day_data)
 
-            row_data[field] = int(
-                row[field]
-            )
+        # Always include the store row (even if no matching day)
+        weekly_rows.append(store_row)
 
+    # --------------------------------------------------------
+    # DEBUG
+    # --------------------------------------------------------
 
-        table_data.append(
-            row_data
+    print(
+        "Prediction rows:",
+        len(pred_grouped)
+    )
+
+    print(
+        "Actual rows:",
+        len(actual_df)
+    )
+
+    print(
+        "Merged rows:",
+        len(df)
+    )
+
+    if not df.empty:
+
+        print(
+            "Actual values found:",
+            (df["actual"] != 0).sum()
         )
 
+        print("\nFINAL SAMPLE:")
 
-    # =========================================================
-    # 16. SUMMARY
-    # =========================================================
+        print(
+            df[
+                [
+                    "date",
+                    "store_id",
+                    "predicted",
+                    "actual",
+                    "variation"
+                ]
+            ]
+            .head(20)
+            .to_string(index=False)
+        )
+
+    print(
+        "=" * 70
+    )
+
+    # --------------------------------------------------------
+    # CONTEXT
+    # --------------------------------------------------------
 
     context = {
-
-        "table_data":
-            table_data,
-
-        "mae":
-            round(mae, 2),
-
-        "rmse":
-            round(rmse, 2),
-
-        "r2": (
-            round(r2, 4)
-            if not np.isnan(r2)
-            else "N/A"
-        ),
-
-        "mape": (
-            round(mape, 2)
-            if not np.isnan(mape)
-            else "N/A"
-        ),
-
-        "total_records":
-            len(df),
-
-        "zero_actual_records":
-            int(
-                (
-                    df["actual"] == 0
-                ).sum()
-            ),
-
-        "positive_actual_records":
-            int(
-                (
-                    df["actual"] > 0
-                ).sum()
-            ),
-
-        "prediction_start":
-            df["date"]
-            .min()
-            .strftime("%Y-%m-%d"),
-
-        "prediction_end":
-            df["date"]
-            .max()
-            .strftime("%Y-%m-%d")
+        "headers": week_dates,
+        "stores": weekly_rows,
+        "total_records": len(weekly_rows),
+        "total_rows": len(weekly_rows),
+        "variation_filter": variation_filter,
+        "variation_options": [
+            ("all", "All"),
+            ("0-10", "0-10%"),
+            ("11-15", "11-15%"),
+            ("16-20", "16-20%"),
+            ("21-25", "21-25%"),
+            ("26-30", "26-30%"),
+            ("30-plus", "Above 30%"),
+        ],
+        "selected_date": week_start.strftime("%Y-%m-%d"),
+        "week_start": week_start,
+        "week_end": week_end,
+        "week_dates": week_dates,
     }
-
-
-    # =========================================================
-    # 17. RENDER
-    # =========================================================
 
     return render(
         request,
         "dashboard/weekly_report.html",
         context
     )
+
+
+# ============================================================
+# GET ACTUAL DATA
+# ============================================================
+
+def get_actual_data(
+    week_start,
+    week_end
+):
+
+    start_date = (
+        pd.Timestamp(
+            week_start
+        ).date()
+    )
+
+    end_date = (
+        pd.Timestamp(
+            week_end
+        ).date()
+    )
+
+    print("\n")
+    print("=" * 70)
+    print("ACTUAL DATABASE QUERY")
+    print("=" * 70)
+
+    print(
+        "Start date:",
+        start_date
+    )
+
+    print(
+        "End date:",
+        end_date
+    )
+
+    actual_rows = []
+
+    # --------------------------------------------------------
+    # QUERY CURRENT actual_footfall TABLE
+    #
+    # SCHEMA:
+    #
+    # id
+    # date
+    # store_id
+    # gate_id
+    # actual
+    # created_at
+    #
+    # --------------------------------------------------------
+
+    try:
+
+        with connection.cursor() as cursor:
+
+            cursor.execute(
+                """
+                SELECT
+                    DATE(date) AS date,
+                    store_id,
+                    gate_id,
+                    SUM(actual) AS actual
+                FROM actual_footfall
+                WHERE DATE(date) >= %s
+                  AND DATE(date) <= %s
+                GROUP BY
+                    DATE(date),
+                    store_id,
+                    gate_id
+                ORDER BY
+                    DATE(date),
+                    store_id,
+                    gate_id
+                """,
+                [
+                    start_date,
+                    end_date
+                ]
+            )
+
+            actual_rows = cursor.fetchall()
+
+    except Exception as e:
+        print("ACTUAL DATABASE ERROR:", e)
+        actual_rows = []
+
+    print("Actual database rows:", len(actual_rows))
+
+    actual_df = pd.DataFrame(
+        actual_rows,
+        columns=["date", "store_id", "gate_id", "actual"]
+    )
+
+    if actual_df.empty:
+        print("WARNING: No actual data found.")
+        return pd.DataFrame(columns=["date", "store_id", "gate_id", "actual"])
+
+    actual_df["date"] = pd.to_datetime(actual_df["date"], errors="coerce").dt.normalize()
+    actual_df["store_id"] = pd.to_numeric(actual_df["store_id"], errors="coerce")
+    actual_df["gate_id"] = pd.to_numeric(actual_df["gate_id"], errors="coerce")
+    actual_df["actual"] = pd.to_numeric(actual_df["actual"], errors="coerce").fillna(0)
+
+    actual_df = actual_df.dropna(subset=["date", "store_id"])
+
+    # Ensure grouping by date, store_id, gate_id
+    actual_df = actual_df.groupby(["date", "store_id", "gate_id"], as_index=False)["actual"].sum()
+
+    return actual_df
+
+
+# ============================================================
+# OPTIONAL OLD DASHBOARD URL
+# ============================================================
+#
+# If your urls.py currently points "/" to dashboard,
+# this function redirects the dashboard to the weekly report.
+#
+# You can keep this if your main page is the weekly report.
+# ============================================================
+
+def home(request):
+
+    return weekly_report(request)
