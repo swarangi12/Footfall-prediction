@@ -754,7 +754,10 @@ except Exception as e:
     st.stop()
 
 
-india_holidays = holidays.India()
+try:
+    india_holidays = holidays.India() if holidays and hasattr(holidays, "India") else {}
+except Exception:
+    india_holidays = {}
 
 
 # =========================================================
