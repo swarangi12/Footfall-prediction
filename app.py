@@ -73,19 +73,30 @@ except Exception:
 # FILE PATHS
 # =========================================================
 
-DATA_PATH = BASE_DIR / "hourlyfootfall_till_current_date1.csv"
+def find_file(filename):
+    paths = [
+        BASE_DIR / filename,
+        BASE_DIR / "models_v3_1" / filename,
+        BASE_DIR.parent / filename,
+    ]
+    for p in paths:
+        if p.exists():
+            return p
+    return BASE_DIR / filename
 
-STAGE1_MODEL_PATH = BASE_DIR / "stage1_low_classifier.pkl"
-LOW_MODEL_PATH = BASE_DIR / "low_footfall_model.pkl"
-NORMAL_MODEL_PATH = BASE_DIR / "normal_footfall_model.pkl"
+DATA_PATH = find_file("hourlyfootfall_till_current_date1.csv")
+
+STAGE1_MODEL_PATH = find_file("stage1_low_classifier.pkl")
+LOW_MODEL_PATH = find_file("low_footfall_model.pkl")
+NORMAL_MODEL_PATH = find_file("normal_footfall_model.pkl")
 
 # V3.1 metadata
-PREDICTION_CONFIG_PATH = BASE_DIR / "prediction_config.pkl"
-MODEL_INFO_PATH = BASE_DIR / "model_info.pkl"
+PREDICTION_CONFIG_PATH = find_file("prediction_config.pkl")
+MODEL_INFO_PATH = find_file("model_info.pkl")
 
-PREDICTION_LOG = BASE_DIR / "prediction_log.csv"
-ACTUAL_FILE = BASE_DIR / "actual_footfall.csv"
-ERROR_LOG = BASE_DIR / "error_log.csv"
+PREDICTION_LOG = find_file("prediction_log.csv")
+ACTUAL_FILE = find_file("actual_footfall.csv")
+ERROR_LOG = find_file("error_log.csv")
 
 
 # =========================================================
