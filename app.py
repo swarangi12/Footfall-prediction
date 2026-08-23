@@ -1,32 +1,46 @@
-from supabase import create_client
 import streamlit as st
+
+# =========================================================
+# PAGE CONFIG (Must be first Streamlit call)
+# =========================================================
+
+try:
+    st.set_page_config(
+        page_title="Footfall Prediction Dashboard",
+        page_icon="📊",
+        layout="wide"
+    )
+except Exception:
+    pass
+
+import os
+import sys
 from datetime import date
 from pathlib import Path
 import pickle
+
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
 import pandas as pd
 import numpy as np
-import holidays
-import os
 
+try:
+    import holidays
+except Exception:
+    holidays = None
 
-# =========================================================
-# PAGE CONFIG
-# =========================================================
-
-st.set_page_config(
-    page_title="Footfall Prediction Dashboard",
-    page_icon="📊",
-    layout="wide"
-)
-
+try:
+    from supabase import create_client
+except Exception:
+    create_client = None
 
 # =========================================================
 # BASE DIRECTORY
 # =========================================================
 
 BASE_DIR = Path(__file__).resolve().parent
-
 
 # =========================================================
 # SUPABASE
@@ -52,7 +66,7 @@ if not SUPABASE_URL:
 if not SUPABASE_KEY:
     SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
-if SUPABASE_URL and SUPABASE_KEY:
+if SUPABASE_URL and SUPABASE_KEY and create_client:
     try:
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
     except BaseException as e:
