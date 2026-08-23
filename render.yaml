@@ -3,7 +3,7 @@ services:
     name: footfall-prediction
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --chdir django_project django_project.wsgi:application
+    startCommand: gunicorn wsgi:application
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
