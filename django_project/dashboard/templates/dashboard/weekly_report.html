@@ -1,12 +1,17 @@
 <!DOCTYPE html>
+
 <html lang="en">
+
 <head>
+
     <meta charset="UTF-8">
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Weekly Footfall Report</title>
+    <title>Footfall Report</title>
 
     <style>
+
         body {
             margin: 0;
             padding: 28px;
@@ -28,7 +33,7 @@
             margin-bottom: 30px;
         }
 
-        .header h1 {
+        .header h2 {
             margin: 0;
             font-size: 40px;
             color: #111827;
@@ -40,41 +45,54 @@
             color: #4b5563;
         }
 
-        .cards {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 24px;
-            margin-bottom: 32px;
+        .filter-form {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-top: 25px;
         }
 
-        .card {
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .filter-group label {
+            font-size: 16px;
+        }
+
+        input[type="date"],
+        select {
+            padding: 12px 15px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 16px;
             background: white;
-            border-radius: 18px;
-            padding: 30px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            min-width: 180px;
         }
 
-        .card-title {
-            color: #6b7280;
-            font-size: 18px;
-            margin-bottom: 14px;
+        .filter-button {
+            margin-top: 27px;
+            padding: 12px 22px;
+            border: none;
+            border-radius: 8px;
+            background: #333;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
         }
 
-        .card-value {
-            font-size: 36px;
-            font-weight: bold;
+        .filter-button:hover {
+            background: #111;
         }
 
-        .available {
-            color: #16a34a;
-        }
-
-        .error-box {
-            background: #fee2e2;
-            color: #991b1b;
-            padding: 20px;
-            border-radius: 10px;
-            margin-bottom: 25px;
+        .date-range {
+            margin-top: 20px;
+            padding: 14px 18px;
+            background: #eef1f5;
+            border-radius: 8px;
             font-size: 17px;
         }
 
@@ -84,11 +102,6 @@
             padding: 30px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.08);
             overflow-x: auto;
-        }
-
-        .report-section h2 {
-            margin-top: 0;
-            font-size: 32px;
         }
 
         table {
@@ -115,11 +128,6 @@
             background: #f9fafb;
         }
 
-        .na {
-            color: #6b7280;
-            font-style: italic;
-        }
-
         .back-button {
             display: inline-block;
             margin-top: 25px;
@@ -136,206 +144,285 @@
         }
 
         @media (max-width: 900px) {
-            .cards {
-                grid-template-columns: 1fr;
-            }
 
-            .header h1 {
+            .header h2 {
                 font-size: 30px;
             }
+
+            .filter-form {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .filter-button {
+                margin-top: 0;
+            }
+
         }
+
     </style>
+
 </head>
 
 <body>
 
 <div class="container">
 
-    <!-- =====================================================
-         HEADER
-    ====================================================== -->
+    <!-- HEADER -->
 
     <div class="header">
 
-        <h1><center>Weekly Footfall Report</center></h1>
+        <h2>Footfall Report</h2>
 
-        <p><center>
-            Prediction vs Actual Footfall Analysis
-        </p></center>
+        <p>Total records: {{ total_rows }}</p>
+
+
+        <!-- DATE + VARIATION FILTER -->
+
+        <form method="GET" class="filter-form">
+
+
+            <!-- CALENDAR -->
+
+            <div class="filter-group">
+
+                <label for="date">
+
+                    <strong>Select Start Date:</strong>
+
+                </label>
+
+                <input
+                    type="date"
+                    id="date"
+                    name="date"
+                    value="{{ selected_date }}"
+                >
+
+            </div>
+
+
+            <!-- VARIATION DROPDOWN -->
+
+            <div class="filter-group">
+
+                <label for="variation">
+
+                    <strong>Variation:</strong>
+
+                </label>
+
+                <select
+                    name="variation"
+                    id="variation"
+                >
+
+                    {% for value, label in variation_options %}
+
+                        <option
+                            value="{{ value }}"
+
+                            {% if variation_filter == value %}
+                                selected
+                            {% endif %}
+                        >
+
+                            {{ label }}
+
+                        </option>
+
+                    {% endfor %}
+
+                </select>
+
+            </div>
+
+
+            <!-- SUBMIT -->
+
+            <button
+                type="submit"
+                class="filter-button"
+            >
+                Show 7 Days
+            </button>
+
+
+        </form>
+
+
+        <!-- SELECTED DATE RANGE -->
+
+        <div class="date-range">
+
+            Showing data from
+
+            <strong>{{ week_start }}</strong>
+
+            to
+
+            <strong>{{ week_end }}</strong>
+
+            <br><br>
+
+            <small>
+                Selected start date + next 6 days
+            </small>
+
+        </div>
+
 
     </div>
 
 
-    <!-- =====================================================
-         ERROR MESSAGE
-    ====================================================== -->
+    <!-- REPORT TABLE -->
 
-    {% if error %}
+    <!-- REPORT TABLE -->
+<!-- REPORT TABLE -->
+<div class="report-section">
 
-        <div class="error-box">
-            {{ error }}
-        </div>
+    <table class="weekly-table">
 
-    {% endif %}
-    
+        <thead>
+
+            <!-- DAY HEADERS -->
+            <tr>
+
+                <th
+                    rowspan="2"
+                    class="store-id-header"
+                >
+                    Store ID
+                </th>
+
+                <th
+                    rowspan="2"
+                    class="store-name-header"
+                >
+                    Store Name
+                </th>
+
+                {% for day in week_dates %}
+
+                    <th
+                        colspan="3"
+                        class="day-header"
+                    >
+                        {{ day.name }} ({{ day.date }})
+                    </th>
+
+                {% endfor %}
+
+            </tr>
 
 
-    <!-- =====================================================
-         SUMMARY CARDS
-    ====================================================== -->
+            <!-- SUB HEADERS -->
+            <tr>
 
-    
+                {% for day in week_dates %}
 
-        
+                    <th class="sub-header">
+                        Predicted<br>footfall
+                    </th>
 
-        </div>
+                    <th class="sub-header">
+                        Actual<br>footfall
+                    </th>
 
-    </div>
+                    <th class="sub-header">
+                        Variation (%)
+                    </th>
+
+                {% endfor %}
+
+            </tr>
+
+        </thead>
 
 
-    <!-- =====================================================
-         REPORT TABLE
-    ====================================================== -->
+        <tbody>
 
-    <div class="report-section">
-
-        
-
-
-        <table>
-
-            <thead>
+            {% for store in weekly_rows %}
 
                 <tr>
 
-                    <table>
+                    <!-- STORE ID -->
+                    <td class="store-id-cell">
+                        {{ store.store_id }}
+                    </td>
 
-    <thead>
-        <tr>
-            <th>Date</th>
-            <th>Store ID</th>
-            <th>Gate ID</th>
 
-            <th>7-8 AM</th>
-            <th>8-9 AM</th>
-            <th>9-10 AM</th>
-            <th>10-11 AM</th>
-            <th>11 AM-12 PM</th>
-            <th>12-1 PM</th>
-            <th>1-2 PM</th>
-            <th>2-3 PM</th>
-            <th>3-4 PM</th>
-            <th>4-5 PM</th>
-            <th>5-6 PM</th>
-            <th>6-7 PM</th>
-            <th>7-8 PM</th>
-            <th>8-9 PM</th>
+                    <!-- STORE NAME -->
+                    <td class="store-name-cell">
+                        {{ store.store_name }}
+                    </td>
 
-            <th>Predicted</th>
-            <th>Actual</th>
-            <th>Absolute Error</th>
-            <th>Error %</th>
-        </tr>
-    </thead>
 
-    <tbody>
+                    <!-- MONDAY -> SUNDAY -->
+                    {% for day in store.days %}
 
-        {% if table_data %}
+                        <td>
+                            {{ day.predicted }}
+                        </td>
 
-            {% for row in table_data %}
+                        <td>
+                            {{ day.actual }}
+                        </td>
 
-            <tr>
+                        <td
+                            class="
+                                {% if day.variation != '-' %}
+                                    variation-cell
+                                {% endif %}
+                            "
+                        >
+                            {% if day.variation != '-' %}
+                                {{ day.variation }}%
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
 
-                <td>{{ row.date }}</td>
-                <td>{{ row.store_id }}</td>
-                <td>{{ row.gate_id }}</td>
+                    {% endfor %}
 
-                <!-- HOURLY FOOTFALL -->
+                </tr>
 
-                <td>{{ row.t7_00_8_00 }}</td>
-                <td>{{ row.t8_00_9_00 }}</td>
-                <td>{{ row.t9_00_10_00 }}</td>
-                <td>{{ row.t10_00_11_00 }}</td>
-                <td>{{ row.t11_00_12_00 }}</td>
-                <td>{{ row.t12_00_13_00 }}</td>
-                <td>{{ row.t13_00_14_00 }}</td>
-                <td>{{ row.t14_00_15_00 }}</td>
-                <td>{{ row.t15_00_16_00 }}</td>
-                <td>{{ row.t16_00_17_00 }}</td>
-                <td>{{ row.t17_00_18_00 }}</td>
-                <td>{{ row.t18_00_19_00 }}</td>
-                <td>{{ row.t19_00_20_00 }}</td>
-                <td>{{ row.t20_00_21_00 }}</td>
+            {% empty %}
 
-                <!-- PREDICTION -->
+                <tr>
 
-                <td>{{ row.predicted }}</td>
+                    <td
+                        colspan="23"
+                        class="no-data"
+                    >
+                        No data found for the selected
+                        date or filter.
+                    </td>
 
-                <!-- ACTUAL -->
-
-                <td>{{ row.actual }}</td>
-
-                <!-- ABSOLUTE ERROR -->
-
-                <td>{{ row.absolute_error }}</td>
-
-                <!-- ERROR PERCENT -->
-
-                <td>
-
-                    {% if row.error_percent == "N/A" %}
-
-                        <span class="na">
-                            N/A
-                        </span>
-
-                    {% else %}
-
-                        {{ row.error_percent }}%
-
-                    {% endif %}
-
-                </td>
-
-            </tr>
+                </tr>
 
             {% endfor %}
 
-        {% else %}
+        </tbody>
 
-            <tr>
+    </table>
 
-                <td
-                    colspan="21"
-                    style="text-align:center; padding:30px;"
-                >
-                    No records found.
-                </td>
+</div>
 
-            </tr>
-
-        {% endif %}
-
-    </tbody>
-
-</table>
-                
-
-    </div>
-
-
-    <!-- =====================================================
-         BACK BUTTON
-    ====================================================== -->
+    <!-- BACK BUTTON -->
 
     <a
         href="/"
         class="back-button"
     >
-        ← Back to Dashboard
+
+        &larr; Back to Dashboard
+
     </a>
+
 
 </div>
 
 </body>
+
 </html>
