@@ -1,8 +1,11 @@
 import os
 import sys
 
-# Add django_project directory to Python path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "django_project"))
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_DIR = os.path.join(BASE_DIR, "django_project")
+
+if PROJECT_DIR not in sys.path:
+    sys.path.insert(0, PROJECT_DIR)
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "django_project.settings")
 
