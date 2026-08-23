@@ -32,13 +32,27 @@ BASE_DIR = Path(__file__).resolve().parent
 # SUPABASE
 # =========================================================
 
-SUPABASE_URL = st.secrets["SUPABASE_URL"]
-SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+SUPABASE_URL = None
+SUPABASE_KEY = None
+supabase = None
 
-supabase = create_client(
-    SUPABASE_URL,
-    SUPABASE_KEY
-)
+try:
+    if hasattr(st, "secrets"):
+        SUPABASE_URL = st.secrets.get("SUPABASE_URL", None)
+        SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", None)
+except Exception:
+    pass
+
+if not SUPABASE_URL:
+    SUPABASE_URL = os.environ.get("SUPABASE_URL")
+if not SUPABASE_KEY:
+    SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+
+if SUPABASE_URL and SUPABASE_KEY:
+    try:
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+    except Exception as e:
+        print("Could not connect to Supabase:", e)
 
 
 # =========================================================
@@ -2035,23 +2049,27 @@ if predict_clicked:
 
 
             try:
+                if supabase:
+                    try:
 
-                supabase.table(
-                    "actual_footfall"
-                ).upsert(
+                        supabase.table(
+                            "actual_footfall"
+                        ).upsert(
 
-                    actual_data,
+                            actual_data,
 
-                    on_conflict=(
-                        "date,store_id,gate_id"
-                    )
+                            on_conflict=(
+                                "date,store_id,gate_id"
+                            )
 
-                ).execute()
+                        ).execute()
 
 
-                st.success(
-                    "✅ Actual Footfall Saved to Supabase!"
-                )
+                        st.success(
+                            "✅ Actual Footfall Saved to Supabase!"
+                        )
+                    except Exception as e:
+                        st.warning(f"Could not save to Supabase: {e}")
 
 
                 # -----------------------------------------
