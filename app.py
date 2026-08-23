@@ -37,10 +37,14 @@ SUPABASE_KEY = None
 supabase = None
 
 try:
-    if hasattr(st, "secrets"):
-        SUPABASE_URL = st.secrets.get("SUPABASE_URL", None)
-        SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", None)
-except Exception:
+    sec = getattr(st, "secrets", None)
+    if sec is not None:
+        try:
+            SUPABASE_URL = sec.get("SUPABASE_URL", None)
+            SUPABASE_KEY = sec.get("SUPABASE_KEY", None)
+        except BaseException:
+            pass
+except BaseException:
     pass
 
 if not SUPABASE_URL:
@@ -51,7 +55,7 @@ if not SUPABASE_KEY:
 if SUPABASE_URL and SUPABASE_KEY:
     try:
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-    except Exception as e:
+    except BaseException as e:
         print("Could not connect to Supabase:", e)
 
 
