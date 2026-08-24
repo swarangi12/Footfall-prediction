@@ -372,8 +372,8 @@ def dashboard(request):
         )
         date_key = pd.Timestamp(row["date"]).strftime("%Y-%m-%d")
         data_lookup[(store_id, gate_id, date_key)] = {
-            "predicted": round(float(row["predicted"]), 2),
-            "actual": round(float(row["actual"]), 2),
+            "predicted": int(float(row["predicted"])),
+            "actual": int(float(row["actual"])),
             "variation": row["variation"],
         }
         store_gate_pairs.add((store_id, gate_id))
@@ -401,20 +401,28 @@ def dashboard(request):
 
         if variation_filter == "all":
             return True
+        # Expanded ranges
         if variation_filter == "0-10":
             return 0 <= value <= 10
-        if variation_filter == "11-15":
-            return 11 <= value <= 15
-        if variation_filter == "16-20":
-            return 16 <= value <= 20
-        if variation_filter == "21-25":
-            return 21 <= value <= 25
-        if variation_filter == "26-30":
-            return 26 <= value <= 30
-        if variation_filter == "30-plus":
-            return value > 30
-
-        return True
+        if variation_filter == "11-20":
+            return 11 <= value <= 20
+        if variation_filter == "21-30":
+            return 21 <= value <= 30
+        if variation_filter == "31-40":
+            return 31 <= value <= 40
+        if variation_filter == "41-50":
+            return 41 <= value <= 50
+        if variation_filter == "51-60":
+            return 51 <= value <= 60
+        if variation_filter == "61-70":
+            return 61 <= value <= 70
+        if variation_filter == "71-80":
+            return 71 <= value <= 80
+        if variation_filter == "81-90":
+            return 81 <= value <= 90
+        if variation_filter == "91-100":
+            return 91 <= value <= 100
+        return False
 
     # Build a sorted list of (store_id, gate_id) tuples from the lookup
     sorted_store_gate_pairs = sorted(
@@ -442,10 +450,17 @@ def dashboard(request):
                 matches = variation_matches(record["variation"])
                 if matches:
                     day_data = {
-                        "predicted": record["predicted"],
-                        "actual": record["actual"],
-                        "variation": record["variation"],
-                        "variation_display": f"{record['variation']}%" if record["variation"] is not None else "NA%",
+                        "predicted": int(record["predicted"]),
+                        "actual": int(record["actual"]),
+                        # Variation may be numeric or the string "NA"
+                        "variation": (
+                            int(record["variation"]) if isinstance(record["variation"], (int, float))
+                            else (int(float(record["variation"])) if isinstance(record["variation"], str) and record["variation"].upper() != "NA" else "-")
+                        ),
+                        "variation_display": (
+                            f"{int(record['variation'])}%" if isinstance(record["variation"], (int, float))
+                            else (f"{int(float(record['variation']))}%" if isinstance(record["variation"], str) and record["variation"].upper() != "NA" else "NA%")
+                        ),
                         "show": True,
                     }
                 else:
@@ -529,11 +544,15 @@ def dashboard(request):
         "variation_options": [
             ("all", "All"),
             ("0-10", "0-10%"),
-            ("11-15", "11-15%"),
-            ("16-20", "16-20%"),
-            ("21-25", "21-25%"),
-            ("26-30", "26-30%"),
-            ("30-plus", "Above 30%"),
+            ("11-20", "11-20%"),
+            ("21-30", "21-30%"),
+            ("31-40", "31-40%"),
+            ("41-50", "41-50%"),
+            ("51-60", "51-60%"),
+            ("61-70", "61-70%"),
+            ("71-80", "71-80%"),
+            ("81-90", "81-90%"),
+            ("91-100", "91-100%"),
         ],
         "selected_date": week_start.strftime("%Y-%m-%d"),
         "week_start": week_start,

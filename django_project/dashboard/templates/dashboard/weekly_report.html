@@ -239,7 +239,7 @@
                 <!-- Row 1: day names + dates (spanning 3 cols each) -->
                 <tr class="day-header">
                     <th rowspan="2" style="text-align:left; min-width:80px;" class="store-cell">Store ID</th>
-                    <th rowspan="2" style="text-align:left; min-width:80px;" class="gate-cell">Gate ID</th>
+                    <!-- Gate ID column removed -->
                     {% for hdr in headers %}
                         <th colspan="3">{{ hdr.name }} ({{ hdr.date }})</th>
                     {% endfor %}
@@ -261,7 +261,7 @@
                     {% for store in stores %}
                         <tr>
                             <td class="store-cell">{{ store.store_id }}</td>
-                            <td class="gate-cell">{{ store.gate_id }}</td>
+                            <!-- Gate ID column removed -->
                             {% for day in store.days %}
                                 <td class="pred-val">{{ day.predicted }}</td>
                                 <td class="actual-val">{{ day.actual }}</td>

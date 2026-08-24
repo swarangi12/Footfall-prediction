@@ -1849,13 +1849,10 @@ if predict_clicked:
         )
 
 
-        display_table = future[
-            [
-                "date",
-                "Predicted_Footfall",
-                "Model"
-            ]
-        ].copy()
+        display_table = future[[
+            "date",
+            "Predicted_Footfall"
+        ]].copy()
 
 
         display_table["date"] = (
