@@ -3,7 +3,7 @@ pandas
 numpy
 matplotlib
 openpyxl
-xgboost
+xgboost==3.2.0
 scikit-learn
 holidays
 supabase
