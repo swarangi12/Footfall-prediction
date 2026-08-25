@@ -1,7 +1,7 @@
 import streamlit as st
 
 # =========================================================
-# PAGE CONFIG (Must be first Streamlit call)
+# PAGE CONFIG
 # =========================================================
 
 try:
@@ -13,16 +13,20 @@ try:
 except Exception:
     pass
 
+
+# =========================================================
+# IMPORTS
+# =========================================================
+
 import os
-import sys
+import pickle
 from datetime import date
 from pathlib import Path
-import pickle
 
 import matplotlib
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 
+import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 
@@ -36,11 +40,13 @@ try:
 except Exception:
     create_client = None
 
+
 # =========================================================
 # BASE DIRECTORY
 # =========================================================
 
 BASE_DIR = Path(__file__).resolve().parent
+
 
 # =========================================================
 # SUPABASE
@@ -52,24 +58,34 @@ supabase = None
 
 try:
     sec = getattr(st, "secrets", None)
+
     if sec is not None:
         try:
             SUPABASE_URL = sec.get("SUPABASE_URL", None)
             SUPABASE_KEY = sec.get("SUPABASE_KEY", None)
-        except BaseException:
+        except Exception:
             pass
-except BaseException:
+
+except Exception:
     pass
+
 
 if not SUPABASE_URL:
     SUPABASE_URL = os.environ.get("SUPABASE_URL")
+
 if not SUPABASE_KEY:
     SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
+
 if SUPABASE_URL and SUPABASE_KEY and create_client:
+
     try:
-        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-    except BaseException as e:
+        supabase = create_client(
+            SUPABASE_URL,
+            SUPABASE_KEY
+        )
+
+    except Exception as e:
         print("Could not connect to Supabase:", e)
 
 
@@ -78,50 +94,92 @@ if SUPABASE_URL and SUPABASE_KEY and create_client:
 # =========================================================
 
 try:
-    with open(BASE_DIR / "style.css", encoding="utf-8") as f:
-        st.markdown(
-            f"<style>{f.read()}</style>",
-            unsafe_allow_html=True
-        )
+
+    style_path = BASE_DIR / "style.css"
+
+    if style_path.exists():
+
+        with open(
+            style_path,
+            encoding="utf-8"
+        ) as f:
+
+            st.markdown(
+                f"<style>{f.read()}</style>",
+                unsafe_allow_html=True
+            )
+
 except Exception:
     pass
+
+
+# =========================================================
+# FILE PATH FINDER
+# =========================================================
+
+def find_file(filename):
+
+    paths = [
+        BASE_DIR / filename,
+        BASE_DIR / "models_v3_1" / filename,
+        BASE_DIR.parent / filename,
+    ]
+
+    for path in paths:
+
+        if path.exists():
+            return path
+
+    return BASE_DIR / filename
 
 
 # =========================================================
 # FILE PATHS
 # =========================================================
 
-def find_file(filename):
-    paths = [
-        BASE_DIR / filename,
-        BASE_DIR / "models_v3_1" / filename,
-        BASE_DIR.parent / filename,
-    ]
-    for p in paths:
-        if p.exists():
-            return p
-    return BASE_DIR / filename
+DATA_PATH = find_file(
+    "hourlyfootfall_till_current_date1.csv"
+)
 
-DATA_PATH = find_file("hourlyfootfall_till_current_date1.csv")
+STAGE1_MODEL_PATH = find_file(
+    "stage1_low_classifier.pkl"
+)
 
-STAGE1_MODEL_PATH = find_file("stage1_low_classifier.pkl")
-LOW_MODEL_PATH = find_file("low_footfall_model.pkl")
-NORMAL_MODEL_PATH = find_file("normal_footfall_model.pkl")
+LOW_MODEL_PATH = find_file(
+    "low_footfall_model.pkl"
+)
 
-# V3.1 metadata
-PREDICTION_CONFIG_PATH = find_file("prediction_config.pkl")
-MODEL_INFO_PATH = find_file("model_info.pkl")
+NORMAL_MODEL_PATH = find_file(
+    "normal_footfall_model.pkl"
+)
 
-PREDICTION_LOG = find_file("prediction_log.csv")
-ACTUAL_FILE = find_file("actual_footfall.csv")
-ERROR_LOG = find_file("error_log.csv")
+PREDICTION_CONFIG_PATH = find_file(
+    "prediction_config.pkl"
+)
+
+MODEL_INFO_PATH = find_file(
+    "model_info.pkl"
+)
+
+PREDICTION_LOG = find_file(
+    "prediction_log.csv"
+)
+
+ACTUAL_FILE = find_file(
+    "actual_footfall.csv"
+)
+
+ERROR_LOG = find_file(
+    "error_log.csv"
+)
 
 
 # =========================================================
-# EXACT FEATURES USED BY V3.1 MODELS
+# REQUIRED MODEL FEATURES
 # =========================================================
 
 FEATURES = [
+
     "store_id",
     "gate_id",
 
@@ -131,11 +189,13 @@ FEATURES = [
     "weekday",
     "week",
     "quarter",
+
     "is_weekend",
     "holiday",
 
     "weekday_sin",
     "weekday_cos",
+
     "month_sin",
     "month_cos",
 
@@ -154,28 +214,26 @@ FEATURES = [
 
     "store_mean",
     "gate_mean",
+
     "store_weekday_mean",
     "gate_weekday_mean",
 
     "is_month_start",
     "is_month_end",
+
     "is_quarter_start",
     "is_quarter_end"
 ]
 
 
 # =========================================================
-# LOAD V3.1 METADATA
+# RECURSIVE METADATA SEARCH
 # =========================================================
 
-def recursively_find_value(obj, keys_to_find):
-    """
-    Safely search nested dictionaries/objects for useful
-    configuration information.
-
-    This is only used to detect whether the target was
-    log-transformed during V3.1 training.
-    """
+def recursively_find_value(
+    obj,
+    keys_to_find
+):
 
     keys_to_find = {
         str(k).lower()
@@ -214,6 +272,10 @@ def recursively_find_value(obj, keys_to_find):
     return None
 
 
+# =========================================================
+# LOAD METADATA
+# =========================================================
+
 @st.cache_resource
 def load_metadata():
 
@@ -232,6 +294,7 @@ def load_metadata():
                 prediction_config = pickle.load(f)
 
         except Exception:
+
             prediction_config = None
 
 
@@ -247,10 +310,14 @@ def load_metadata():
                 model_info = pickle.load(f)
 
         except Exception:
+
             model_info = None
 
 
-    return prediction_config, model_info
+    return (
+        prediction_config,
+        model_info
+    )
 
 
 prediction_config, model_info = load_metadata()
@@ -264,44 +331,30 @@ def detect_target_transform(
     prediction_config,
     model_info
 ):
-    """
-    Detect how V3.1 target was transformed.
-
-    Expected possibilities:
-
-        log1p
-        log
-        raw
-
-    V3.1 log-target models normally require:
-
-        expm1(prediction)
-
-    before displaying footfall.
-    """
 
     objects = [
         prediction_config,
         model_info
     ]
 
-    # -----------------------------------------------------
-    # Search for explicit target-transform information
-    # -----------------------------------------------------
-
     search_keys = [
+
         "target_transform",
         "target_transformation",
         "target_transform_type",
+
         "transform",
         "transformation",
+
         "target_type",
         "target_scale",
         "prediction_scale",
+
         "use_log_target",
         "log_target",
         "log_transform"
     ]
+
 
     for obj in objects:
 
@@ -316,7 +369,7 @@ def detect_target_transform(
         if value is None:
             continue
 
-        # Boolean information
+
         if isinstance(value, bool):
 
             if value:
@@ -324,37 +377,34 @@ def detect_target_transform(
 
             return "raw"
 
+
         value_string = str(
             value
         ).lower().strip()
 
-        # log1p
+
         if (
-            "log1p"
-            in value_string
+            "log1p" in value_string
             or
-            "log(1+x)"
-            in value_string
+            "log(1+x)" in value_string
             or
-            "log_plus_one"
-            in value_string
+            "log_plus_one" in value_string
         ):
 
             return "log1p"
 
-        # natural log
+
         if (
             value_string == "log"
             or
-            "natural_log"
-            in value_string
+            "natural_log" in value_string
             or
             value_string == "ln"
         ):
 
             return "log"
 
-        # raw
+
         if (
             value_string == "raw"
             or
@@ -368,10 +418,6 @@ def detect_target_transform(
             return "raw"
 
 
-    # -----------------------------------------------------
-    # Search text representation of metadata
-    # -----------------------------------------------------
-
     for obj in objects:
 
         if obj is None:
@@ -382,14 +428,11 @@ def detect_target_transform(
             text = str(obj).lower()
 
             if (
-                "log1p"
-                in text
+                "log1p" in text
                 or
-                "log(1+x)"
-                in text
+                "log(1+x)" in text
                 or
-                "log_plus_one"
-                in text
+                "log_plus_one" in text
             ):
 
                 return "log1p"
@@ -398,14 +441,7 @@ def detect_target_transform(
             pass
 
 
-    # -----------------------------------------------------
     # V3.1 fallback
-    #
-    # Your V3.1 models are log-target models.
-    # Therefore default to log1p if metadata does not
-    # explicitly say otherwise.
-    # -----------------------------------------------------
-
     return "log1p"
 
 
@@ -416,13 +452,12 @@ TARGET_TRANSFORM = detect_target_transform(
 
 
 # =========================================================
-# CONVERT MODEL OUTPUT TO REAL FOOTFALL
+# CONVERT MODEL OUTPUT
 # =========================================================
 
 def convert_prediction_to_footfall(
     raw_prediction
 ):
-    
 
     try:
 
@@ -442,18 +477,12 @@ def convert_prediction_to_footfall(
     ):
 
         raise ValueError(
-            f"Model returned invalid prediction: "
-            f"{raw_prediction}"
+            f"Model returned invalid prediction: {raw_prediction}"
         )
 
 
-    # -----------------------------------------------------
-    # LOG1P TARGET
-    # -----------------------------------------------------
-
     if TARGET_TRANSFORM == "log1p":
 
-        # Prevent overflow in extremely unusual cases.
         raw_prediction = np.clip(
             raw_prediction,
             -20,
@@ -464,10 +493,6 @@ def convert_prediction_to_footfall(
             raw_prediction
         )
 
-
-    # -----------------------------------------------------
-    # NATURAL LOG TARGET
-    # -----------------------------------------------------
 
     elif TARGET_TRANSFORM == "log":
 
@@ -482,22 +507,15 @@ def convert_prediction_to_footfall(
         )
 
 
-    # -----------------------------------------------------
-    # RAW TARGET
-    # -----------------------------------------------------
-
     else:
 
         prediction = raw_prediction
 
 
-    # Footfall cannot be negative.
-
     prediction = max(
         0.0,
         float(prediction)
     )
-
 
     return prediction
 
@@ -540,6 +558,10 @@ def load_models():
     )
 
 
+# =========================================================
+# LOAD MODELS SAFELY
+# =========================================================
+
 try:
 
     (
@@ -554,9 +576,10 @@ except Exception as e:
         f"""
         ❌ Unable to load models.
 
+        Error:
         {e}
 
-        Make sure these files are present beside app.py:
+        Make sure these files exist:
 
         • stage1_low_classifier.pkl
         • low_footfall_model.pkl
@@ -598,10 +621,6 @@ normal_features = get_model_features(
 )
 
 
-# =========================================================
-# CHECK FEATURES
-# =========================================================
-
 feature_errors = []
 
 
@@ -642,44 +661,33 @@ if feature_errors:
         )
     )
 
-    st.write(
-        "Dashboard features:",
-        FEATURES
-    )
-
-    if stage1_features:
-
-        st.write(
-            "Stage 1 features:",
-            stage1_features
-        )
-
-    if low_features:
-
-        st.write(
-            "Low model features:",
-            low_features
-        )
-
-    if normal_features:
-
-        st.write(
-            "Normal model features:",
-            normal_features
-        )
-
     st.stop()
 
 
 # =========================================================
-# LOAD DATA
+# LOAD DATA - MEMORY OPTIMIZED
 # =========================================================
 
 @st.cache_data
 def load_data():
 
+    if not DATA_PATH.exists():
+
+        raise FileNotFoundError(
+            f"Dataset not found: {DATA_PATH}"
+        )
+
+
+    # IMPORTANT:
+    # Only load columns actually needed.
     data = pd.read_csv(
-        DATA_PATH
+        DATA_PATH,
+        usecols=[
+            "date",
+            "store_id",
+            "gate_id",
+            "total_footfall"
+        ]
     )
 
 
@@ -717,6 +725,22 @@ def load_data():
     )
 
 
+    # Smaller numeric types
+    data["store_id"] = data[
+        "store_id"
+    ].astype("int32")
+
+
+    data["gate_id"] = data[
+        "gate_id"
+    ].astype("int16")
+
+
+    data["total_footfall"] = data[
+        "total_footfall"
+    ].astype("float32")
+
+
     data = data.drop_duplicates(
         subset=[
             "date",
@@ -741,6 +765,10 @@ def load_data():
     return data
 
 
+# =========================================================
+# LOAD DATA SAFELY
+# =========================================================
+
 try:
 
     df = load_data()
@@ -754,14 +782,34 @@ except Exception as e:
     st.stop()
 
 
+# =========================================================
+# HOLIDAYS
+# =========================================================
+
 try:
-    india_holidays = holidays.India() if holidays and hasattr(holidays, "India") else {}
+
+    if holidays and hasattr(
+        holidays,
+        "India"
+    ):
+
+        india_holidays = holidays.India()
+
+    else:
+
+        india_holidays = {}
+
 except Exception:
+
     india_holidays = {}
 
 
 # =========================================================
-# CREATE MODEL FEATURES
+# CREATE FEATURES
+#
+# IMPORTANT:
+# This function is NOT called on the complete dataset.
+# It is only called for the selected store/gate history.
 # =========================================================
 
 def create_features(data):
@@ -786,7 +834,7 @@ def create_features(data):
 
 
     # =====================================================
-    # CALENDAR FEATURES
+    # CALENDAR
     # =====================================================
 
     data["year"] = (
@@ -823,9 +871,7 @@ def create_features(data):
     data["holiday"] = (
         data["date"]
         .dt.date
-        .isin(
-            india_holidays
-        )
+        .isin(india_holidays)
         .astype(int)
     )
 
@@ -1066,23 +1112,6 @@ def create_features(data):
 
 
 # =========================================================
-# BUILD FEATURES
-# =========================================================
-
-@st.cache_data
-def get_feature_data(data):
-
-    return create_features(
-        data
-    )
-
-
-feature_df = get_feature_data(
-    df
-)
-
-
-# =========================================================
 # HEADER
 # =========================================================
 
@@ -1185,9 +1214,9 @@ def build_future_features(
     )
 
 
-    # -----------------------------------------------------
-    # ONLY DATA BEFORE TARGET DATE
-    # -----------------------------------------------------
+    # =====================================================
+    # ONLY SELECTED STORE + GATE
+    # =====================================================
 
     history = history_df[
         (
@@ -1220,42 +1249,42 @@ def build_future_features(
         )
 
 
-    # -----------------------------------------------------
-    # CREATE TEMP DATASET
-    # -----------------------------------------------------
-
-    temp = history.copy()
-
+    # =====================================================
+    # TEMP DATA
+    # =====================================================
 
     future_row = pd.DataFrame({
 
-        "date":
-            [target_date],
+        "date": [
+            target_date
+        ],
 
-        "store_id":
-            [store],
+        "store_id": [
+            store
+        ],
 
-        "gate_id":
-            [gate],
+        "gate_id": [
+            gate
+        ],
 
-        "total_footfall":
-            [np.nan]
-
+        "total_footfall": [
+            np.nan
+        ]
     })
 
 
     temp = pd.concat(
         [
-            temp,
+            history,
             future_row
         ],
         ignore_index=True
     )
 
 
-    # -----------------------------------------------------
+    # =====================================================
     # CREATE FEATURES
-    # -----------------------------------------------------
+    # =====================================================
 
     temp_features = create_features(
         temp
@@ -1275,13 +1304,16 @@ def build_future_features(
         )
 
 
-    # -----------------------------------------------------
-    # SELECT EXACT MODEL FEATURES
-    # -----------------------------------------------------
+    # =====================================================
+    # CHECK FEATURES
+    # =====================================================
 
     missing_features = [
+
         feature
+
         for feature in FEATURES
+
         if feature not in row.columns
     ]
 
@@ -1302,9 +1334,9 @@ def build_future_features(
     ].copy()
 
 
-    # -----------------------------------------------------
+    # =====================================================
     # FALLBACK VALUES
-    # -----------------------------------------------------
+    # =====================================================
 
     fallback_columns = [
 
@@ -1321,10 +1353,24 @@ def build_future_features(
 
         "store_mean",
         "gate_mean",
+
         "store_weekday_mean",
         "gate_weekday_mean"
-
     ]
+
+
+    last_value = float(
+        history[
+            "total_footfall"
+        ].iloc[-1]
+    )
+
+
+    mean_value = float(
+        history[
+            "total_footfall"
+        ].mean()
+    )
 
 
     for col in fallback_columns:
@@ -1340,23 +1386,19 @@ def build_future_features(
                 X.loc[
                     X.index[0],
                     col
-                ] = history[
-                    "total_footfall"
-                ].iloc[-1]
+                ] = last_value
 
             else:
 
                 X.loc[
                     X.index[0],
                     col
-                ] = history[
-                    "total_footfall"
-                ].mean()
+                ] = mean_value
 
 
-    # -----------------------------------------------------
-    # TREND FALLBACK
-    # -----------------------------------------------------
+    # =====================================================
+    # TREND
+    # =====================================================
 
     if pd.isna(
         X.iloc[0]["trend"]
@@ -1368,9 +1410,9 @@ def build_future_features(
         ] = 1.0
 
 
-    # -----------------------------------------------------
+    # =====================================================
     # FINAL CLEANUP
-    # -----------------------------------------------------
+    # =====================================================
 
     X = X.replace(
         [
@@ -1415,10 +1457,6 @@ def predict_one_date(
     )[0]
 
 
-    # =====================================================
-    # HANDLE CLASS LABEL
-    # =====================================================
-
     try:
 
         stage_prediction = int(
@@ -1452,7 +1490,7 @@ def predict_one_date(
 
 
     # =====================================================
-    # RAW MODEL PREDICTION
+    # MODEL PREDICTION
     # =====================================================
 
     raw_prediction = selected_model.predict(
@@ -1461,18 +1499,7 @@ def predict_one_date(
 
 
     # =====================================================
-    # IMPORTANT:
-    #
-    # V3.1 MODEL USES LOG TARGET
-    #
-    # raw prediction could be:
-    #
-    # 7.7
-    #
-    # But actual footfall is:
-    #
-    # expm1(7.7)
-    #
+    # CONVERT LOG → REAL FOOTFALL
     # =====================================================
 
     prediction = convert_prediction_to_footfall(
@@ -1499,7 +1526,13 @@ def make_7_day_forecast(
     start_date
 ):
 
-    working = base_data.copy()
+    # Only copy the selected store/gate.
+    working = base_data[
+        (base_data["store_id"] == store)
+        &
+        (base_data["gate_id"] == gate)
+    ].copy()
+
 
     results = []
 
@@ -1544,33 +1577,30 @@ def make_7_day_forecast(
 
             "Model":
                 model_name
-
         })
 
 
-        # -------------------------------------------------
-        # Add REAL-SCALE prediction to working data.
-        #
-        # This is extremely important.
-        #
-        # Future recursive lags must use actual footfall
-        # scale, NOT the log prediction.
-        # -------------------------------------------------
+        # =================================================
+        # RECURSIVE PREDICTION
+        # =================================================
 
         new_row = pd.DataFrame({
 
-            "date":
-                [target],
+            "date": [
+                target
+            ],
 
-            "store_id":
-                [store],
+            "store_id": [
+                store
+            ],
 
-            "gate_id":
-                [gate],
+            "gate_id": [
+                gate
+            ],
 
-            "total_footfall":
-                [prediction]
-
+            "total_footfall": [
+                prediction
+            ]
         })
 
 
@@ -1611,17 +1641,7 @@ if predict_clicked:
 
 
         # =================================================
-        # SHOW FEATURES FOR DEBUGGING
-        # =================================================
-
-        
-
-
-        
-
-
-        # =================================================
-        # SESSION
+        # SESSION STATE
         # =================================================
 
         st.session_state.store = (
@@ -1646,9 +1666,6 @@ if predict_clicked:
         # =================================================
         # RESULT
         # =================================================
-
-        
-
 
         col1, col2 = st.columns(2)
 
@@ -1684,34 +1701,42 @@ if predict_clicked:
 
         new_prediction = pd.DataFrame({
 
-            "date":
-                [prediction_date_str],
+            "date": [
+                prediction_date_str
+            ],
 
-            "store_id":
-                [store_id],
+            "store_id": [
+                store_id
+            ],
 
-            "gate_id":
-                [gate_id],
+            "gate_id": [
+                gate_id
+            ],
 
-            "predicted":
-                [round(
+            "predicted": [
+                round(
                     prediction,
                     2
-                )]
-
+                )
+            ]
         })
 
 
         if PREDICTION_LOG.exists():
 
             old = pd.read_csv(
-                PREDICTION_LOG
+                PREDICTION_LOG,
+                usecols=[
+                    "date",
+                    "store_id",
+                    "gate_id",
+                    "predicted"
+                ]
             )
 
 
             old["date"] = (
-                old["date"]
-                .astype(str)
+                old["date"].astype(str)
             )
 
 
@@ -1747,7 +1772,6 @@ if predict_clicked:
                     old["gate_id"]
                     == gate_id
                 )
-
             )
 
 
@@ -1819,19 +1843,14 @@ if predict_clicked:
         future = make_7_day_forecast(
 
             df,
-
             store_id,
-
             gate_id,
-
             selected_date
-
         )
 
 
         future["holiday"] = (
-            future["date"]
-            .apply(
+            future["date"].apply(
                 lambda x:
                 int(
                     x.date()
@@ -1849,10 +1868,12 @@ if predict_clicked:
         )
 
 
-        display_table = future[[
-            "date",
-            "Predicted_Footfall"
-        ]].copy()
+        display_table = future[
+            [
+                "date",
+                "Predicted_Footfall"
+            ]
+        ].copy()
 
 
         display_table["date"] = (
@@ -1893,30 +1914,21 @@ if predict_clicked:
 
 
         ax.plot(
-
             future["date"],
-
             future[
                 "Predicted_Footfall"
             ],
-
             marker="o",
-
             linewidth=3
-
         )
 
 
         ax.fill_between(
-
             future["date"],
-
             future[
                 "Predicted_Footfall"
             ],
-
             alpha=0.20
-
         )
 
 
@@ -1945,9 +1957,15 @@ if predict_clicked:
         )
 
 
+        fig.tight_layout()
+
+
         st.pyplot(
             fig
         )
+
+
+        plt.close(fig)
 
 
         # =================================================
@@ -2011,8 +2029,7 @@ if predict_clicked:
 
 
         csv["date"] = (
-            csv["date"]
-            .astype(str)
+            csv["date"].astype(str)
         )
 
 
@@ -2029,7 +2046,6 @@ if predict_clicked:
             ),
 
             mime="text/csv"
-
         )
 
 
@@ -2052,7 +2068,6 @@ if predict_clicked:
             min_value=0,
 
             step=1
-
         )
 
 
@@ -2073,12 +2088,17 @@ if predict_clicked:
 
                 "actual":
                     int(actual_value)
-
             }
 
 
             try:
+
+                # =================================================
+                # SUPABASE
+                # =================================================
+
                 if supabase:
+
                     try:
 
                         supabase.table(
@@ -2097,53 +2117,76 @@ if predict_clicked:
                         st.success(
                             "✅ Actual Footfall Saved to Supabase!"
                         )
+
+
                     except Exception as e:
-                        st.warning(f"Could not save to Supabase: {e}")
+
+                        st.warning(
+                            f"Could not save to Supabase: {e}"
+                        )
 
 
-                # -----------------------------------------
+                # =================================================
                 # LOCAL BACKUP
-                # -----------------------------------------
+                # =================================================
 
                 new_actual = pd.DataFrame({
 
-                    "date":
-                        [prediction_date_str],
+                    "date": [
+                        prediction_date_str
+                    ],
 
-                    "store_id":
-                        [store_id],
+                    "store_id": [
+                        store_id
+                    ],
 
-                    "gate_id":
-                        [gate_id],
+                    "gate_id": [
+                        gate_id
+                    ],
 
-                    "actual":
-                        [actual_value]
-
+                    "actual": [
+                        actual_value
+                    ]
                 })
 
 
                 if ACTUAL_FILE.exists():
 
                     old_actual = pd.read_csv(
-                        ACTUAL_FILE
+                        ACTUAL_FILE,
+                        usecols=[
+                            "date",
+                            "store_id",
+                            "gate_id",
+                            "actual"
+                        ]
                     )
 
 
                     old_actual["date"] = (
-                        old_actual["date"]
-                        .astype(str)
+                        old_actual[
+                            "date"
+                        ].astype(str)
                     )
 
 
-                    old_actual["store_id"] = pd.to_numeric(
-                        old_actual["store_id"],
-                        errors="coerce"
+                    old_actual["store_id"] = (
+                        pd.to_numeric(
+                            old_actual[
+                                "store_id"
+                            ],
+                            errors="coerce"
+                        )
                     )
 
 
-                    old_actual["gate_id"] = pd.to_numeric(
-                        old_actual["gate_id"],
-                        errors="coerce"
+                    old_actual["gate_id"] = (
+                        pd.to_numeric(
+                            old_actual[
+                                "gate_id"
+                            ],
+                            errors="coerce"
+                        )
                     )
 
 
@@ -2167,7 +2210,6 @@ if predict_clicked:
                             old_actual["gate_id"]
                             == gate_id
                         )
-
                     )
 
 
@@ -2203,9 +2245,9 @@ if predict_clicked:
                     )
 
 
-                # -----------------------------------------
+                # =================================================
                 # ERROR LOG
-                # -----------------------------------------
+                # =================================================
 
                 if (
                     PREDICTION_LOG.exists()
@@ -2216,6 +2258,7 @@ if predict_clicked:
                     pred = pd.read_csv(
                         PREDICTION_LOG
                     )
+
 
                     actual = pd.read_csv(
                         ACTUAL_FILE
@@ -2231,7 +2274,6 @@ if predict_clicked:
                             "store_id",
                             "gate_id"
                         ]
-
                     )
 
 
@@ -2286,7 +2328,6 @@ if predict_clicked:
                             *
 
                             100
-
                         )
 
 
@@ -2297,7 +2338,6 @@ if predict_clicked:
                             error_df[
                                 "error_percent"
                             ].round(2)
-
                         )
 
 
@@ -2305,6 +2345,11 @@ if predict_clicked:
                             ERROR_LOG,
                             index=False
                         )
+
+
+                st.success(
+                    "✅ Actual Footfall Saved!"
+                )
 
 
                 st.rerun()
@@ -2331,79 +2376,96 @@ if predict_clicked:
             )
 
 
+            # =================================================
+            # ERROR ANALYSIS
+            # =================================================
+
             if ERROR_LOG.exists():
 
-                error_df = pd.read_csv(
-                    ERROR_LOG
-                )
+                try:
 
-
-                if (
-                    "error_percent"
-                    in error_df.columns
-                    and
-                    not error_df.empty
-                ):
-
-                    st.subheader(
-                        "📊 Prediction Error Analysis"
+                    error_df = pd.read_csv(
+                        ERROR_LOG
                     )
 
 
-                    fig, ax = plt.subplots(
-                        figsize=(10, 5)
-                    )
+                    if (
+                        "error_percent"
+                        in error_df.columns
+                        and
+                        not error_df.empty
+                    ):
+
+                        st.subheader(
+                            "📊 Prediction Error Analysis"
+                        )
 
 
-                    ax.bar(
-
-                        error_df[
-                            "date"
-                        ].astype(str),
-
-                        error_df[
-                            "error_percent"
-                        ]
-
-                    )
+                        fig2, ax2 = plt.subplots(
+                            figsize=(10, 5)
+                        )
 
 
-                    ax.axhline(
+                        ax2.bar(
 
-                        y=25,
+                            error_df[
+                                "date"
+                            ].astype(str),
 
-                        linestyle="--",
-
-                        label="25% Threshold"
-
-                    )
-
-
-                    ax.set_xlabel(
-                        "Date"
-                    )
+                            error_df[
+                                "error_percent"
+                            ]
+                        )
 
 
-                    ax.set_ylabel(
-                        "Error (%)"
-                    )
+                        ax2.axhline(
+
+                            y=25,
+
+                            linestyle="--",
+
+                            label="25% Threshold"
+                        )
 
 
-                    ax.set_title(
-                        "Prediction Error"
-                    )
+                        ax2.set_xlabel(
+                            "Date"
+                        )
 
 
-                    plt.xticks(
-                        rotation=45
-                    )
+                        ax2.set_ylabel(
+                            "Error (%)"
+                        )
 
 
-                    ax.legend()
+                        ax2.set_title(
+                            "Prediction Error"
+                        )
 
 
-                    st.pyplot(
-                        fig
+                        plt.xticks(
+                            rotation=45
+                        )
+
+
+                        ax2.legend()
+
+
+                        fig2.tight_layout()
+
+
+                        st.pyplot(
+                            fig2
+                        )
+
+
+                        plt.close(fig2)
+
+
+                except Exception as e:
+
+                    st.warning(
+                        f"Could not load error analysis: {e}"
                     )
 
 
