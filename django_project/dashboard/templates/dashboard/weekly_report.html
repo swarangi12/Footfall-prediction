@@ -184,37 +184,105 @@
         <p class="total-records">Total records: {{ total_records }}</p>
 
         <!-- FILTERS -->
-        <form method="GET">
-            <div class="filter-row">
+        <form method="GET" class="filter-form">
 
-                <div class="filter-group">
-                    <label for="date">Select Start Date:</label>
-                    <input
-                        type="date"
-                        id="date"
-                        name="date"
-                        value="{{ selected_date }}"
-                    >
-                </div>
+    <!-- DATE -->
+    <div class="filter-group">
 
-                <div class="filter-group">
-                    <label for="variation">Variation:</label>
-                    <select name="variation" id="variation">
-                        {% for value, label in variation_options %}
-                            <option value="{{ value }}" {% if variation_filter == value %}selected{% endif %}>
-                                {{ label }}
-                            </option>
-                        {% endfor %}
-                    </select>
-                </div>
+        <label for="date">
+            <strong>Select Start Date:</strong>
+        </label>
 
-                <div class="filter-group">
-                    <button type="submit" class="btn-show">Show 7 Days</button>
-                </div>
+        <input
+            type="date"
+            id="date"
+            name="date"
+            value="{{ selected_date }}"
+        >
 
-            </div>
-        </form>
     </div>
+
+
+    <!-- STORE ID -->
+    <div class="filter-group">
+
+        <label for="store_id">
+            <strong>Store ID:</strong>
+        </label>
+
+        <select
+            name="store_id"
+            id="store_id"
+        >
+
+            <option
+                value="all"
+                {% if selected_store == "all" %}
+                    selected
+                {% endif %}
+            >
+                All Stores
+            </option>
+
+            {% for store_id in store_options %}
+
+                <option
+                    value="{{ store_id }}"
+                    {% if selected_store|stringformat:"s" == store_id|stringformat:"s" %}
+                        selected
+                    {% endif %}
+                >
+                    Store {{ store_id }}
+                </option>
+
+            {% endfor %}
+
+        </select>
+
+    </div>
+
+
+    <!-- VARIATION -->
+    <div class="filter-group">
+
+        <label for="variation">
+            <strong>Variation:</strong>
+        </label>
+
+        <select
+            name="variation"
+            id="variation"
+        >
+
+            {% for value, label in variation_options %}
+
+                <option
+                    value="{{ value }}"
+                    {% if variation_filter == value %}
+                        selected
+                    {% endif %}
+                >
+                    {{ label }}
+                </option>
+
+            {% endfor %}
+
+        </select>
+
+    </div>
+
+
+    <!-- SUBMIT -->
+    <button
+        type="submit"
+        class="filter-button"
+    >
+        Show 7 Days
+    </button>
+
+</form>
+    </div>
+</div>
 
     <!-- ===== DATE RANGE INFO ===== -->
     <div class="date-info">
