@@ -783,6 +783,332 @@ except Exception as e:
 
 
 # =========================================================
+# HOURLY DISTRIBUTION HELPERS
+# =========================================================
+
+HOURLY_COLUMNS = [
+    "t7_00_8_00", "t8_00_9_00", "t9_00_10_00", "t10_00_11_00", "t11_00_12_00",
+    "t12_00_13_00", "t13_00_14_00", "t14_00_15_00", "t15_00_16_00", "t16_00_17_00",
+    "t17_00_18_00", "t18_00_19_00", "t19_00_20_00", "t20_00_21_00", "t21_00_22_00",
+    "t22_00_23_00", "t23_00_23_59"
+]
+
+HOURLY_LABELS = {
+    "t7_00_8_00": "07:00 - 08:00",
+    "t8_00_9_00": "08:00 - 09:00",
+    "t9_00_10_00": "09:00 - 10:00",
+    "t10_00_11_00": "10:00 - 11:00",
+    "t11_00_12_00": "11:00 - 12:00",
+    "t12_00_13_00": "12:00 - 13:00",
+    "t13_00_14_00": "13:00 - 14:00",
+    "t14_00_15_00": "14:00 - 15:00",
+    "t15_00_16_00": "15:00 - 16:00",
+    "t16_00_17_00": "16:00 - 17:00",
+    "t17_00_18_00": "17:00 - 18:00",
+    "t18_00_19_00": "18:00 - 19:00",
+    "t19_00_20_00": "19:00 - 20:00",
+    "t20_00_21_00": "20:00 - 21:00",
+    "t21_00_22_00": "21:00 - 22:00",
+    "t22_00_23_00": "22:00 - 23:00",
+    "t23_00_23_59": "23:00 - 23:59"
+}
+
+
+@st.cache_data
+def load_hourly_distribution():
+    if not DATA_PATH.exists():
+        return None
+
+    usecols = ["date", "store_id", "gate_id"] + HOURLY_COLUMNS
+
+    raw = pd.read_csv(
+        DATA_PATH,
+        usecols=usecols
+    )
+
+    raw["date"] = pd.to_datetime(
+        raw["date"],
+        errors="coerce"
+    )
+
+    raw = raw.dropna(
+        subset=[
+            "date",
+            "store_id",
+            "gate_id"
+        ]
+    )
+
+    raw["store_id"] = raw[
+        "store_id"
+    ].astype("int32")
+
+    raw["gate_id"] = raw[
+        "gate_id"
+    ].astype("int16")
+
+    raw["day_of_week"] = raw[
+        "date"
+    ].dt.dayofweek
+
+    for col in HOURLY_COLUMNS:
+        raw[col] = pd.to_numeric(
+            raw[col],
+            errors="coerce"
+        ).fillna(0)
+
+    by_dayofweek = raw.groupby(
+        [
+            "store_id",
+            "gate_id",
+            "day_of_week"
+        ]
+    )[HOURLY_COLUMNS].mean()
+
+    by_store_gate = raw.groupby(
+        [
+            "store_id",
+            "gate_id"
+        ]
+    )[HOURLY_COLUMNS].mean()
+
+    global_avg = raw[
+        HOURLY_COLUMNS
+    ].mean()
+
+    return {
+        "by_dayofweek": by_dayofweek,
+        "by_store_gate": by_store_gate,
+        "global_avg": global_avg,
+        "hourly_cols": HOURLY_COLUMNS
+    }
+
+
+try:
+
+    hourly_dist_data = load_hourly_distribution()
+
+except Exception:
+
+    hourly_dist_data = None
+
+
+def predict_hourwise(
+    daily_total,
+    store,
+    gate,
+    target_date,
+    dist_data
+):
+    if dist_data is None:
+        return pd.DataFrame()
+
+    hourly_cols = dist_data["hourly_cols"]
+    day_of_week = pd.Timestamp(target_date).dayofweek
+
+    ratios = None
+
+    try:
+        if (store, gate, day_of_week) in dist_data["by_dayofweek"].index:
+            ratios = dist_data["by_dayofweek"].loc[(store, gate, day_of_week)].values.copy()
+    except Exception:
+        ratios = None
+
+    if ratios is None or ratios.sum() == 0:
+        try:
+            if (store, gate) in dist_data["by_store_gate"].index:
+                ratios = dist_data["by_store_gate"].loc[(store, gate)].values.copy()
+        except Exception:
+            ratios = None
+
+    if ratios is None or ratios.sum() == 0:
+        ratios = dist_data["global_avg"].values.copy()
+
+    total_ratio = ratios.sum()
+
+    if total_ratio <= 0:
+        normalized_ratios = np.ones(len(hourly_cols)) / len(hourly_cols)
+    else:
+        normalized_ratios = ratios / total_ratio
+
+    predicted_hourly = daily_total * normalized_ratios
+    labels = [HOURLY_LABELS.get(col, col) for col in hourly_cols]
+
+    return pd.DataFrame({
+        "Time Slot": labels,
+        "Predicted Footfall": np.round(predicted_hourly, 1)
+    })
+
+
+# =========================================================
+# CONTINUOUS LEARNING & ADAPTIVE CALIBRATION HELPERS
+# =========================================================
+
+def get_recent_calibration_factor(store, gate):
+    if not ERROR_LOG.exists():
+        return 1.0, 0, 0.0
+
+    try:
+        df_err = pd.read_csv(ERROR_LOG)
+        if df_err.empty:
+            return 1.0, 0, 0.0
+
+        mask = (df_err["store_id"] == store) & (df_err["gate_id"] == gate) & (df_err["actual"] > 0)
+        recent = df_err[mask].tail(7)
+
+        if len(recent) == 0:
+            recent = df_err[df_err["actual"] > 0].tail(7)
+
+        if len(recent) == 0:
+            return 1.0, 0, 0.0
+
+        mean_act = recent["actual"].mean()
+        mean_pred = recent["predicted"].mean()
+
+        if mean_pred <= 0 or mean_act <= 0:
+            return 1.0, len(recent), float(recent["error_percent"].mean()) if "error_percent" in recent.columns else 0.0
+
+        raw_ratio = mean_act / mean_pred
+        bounded_ratio = max(0.7, min(1.3, raw_ratio))
+        calib_factor = 0.7 * bounded_ratio + 0.3 * 1.0
+        avg_err = float(recent["error_percent"].mean()) if "error_percent" in recent.columns else 0.0
+
+        return round(calib_factor, 4), len(recent), round(avg_err, 2)
+    except Exception:
+        return 1.0, 0, 0.0
+
+
+def parse_sql_dump_actuals():
+    sql_path = find_file("shoppersstop_backup.sql")
+    if not sql_path.exists():
+        return pd.DataFrame()
+    insert_prefix = "INSERT INTO `app_agehourlyfootfall`"
+    parsed_records = []
+    try:
+        import csv
+        import re
+        from io import StringIO
+        with sql_path.open("r", encoding="utf-8", errors="ignore") as f:
+            buffer = []
+            for line in f:
+                if not buffer and insert_prefix not in line:
+                    continue
+                buffer.append(line.rstrip())
+                if line.rstrip().endswith(";"):
+                    stmt = " ".join(buffer)
+                    buffer.clear()
+                    match = re.search(r"VALUES\s*(.*);$", stmt, flags=re.IGNORECASE | re.DOTALL)
+                    if not match:
+                        continue
+                    values_blob = match.group(1).strip().replace("\n", " ")
+                    if values_blob.startswith("(") and values_blob.endswith(")"):
+                        values_blob = values_blob[1:-1]
+                    raw_rows = re.split(r"\),\s*\(", values_blob)
+                    for raw in raw_rows:
+                        raw = f"({raw})"
+                        raw_clean = raw.replace("\\'", "__SINGLE_QUOTE__")
+                        inner = raw_clean[1:-1]
+                        try:
+                            csv_reader = csv.reader(StringIO(inner), delimiter=",", quotechar="'", escapechar="\\")
+                            parts = next(csv_reader)
+                            parts = [p.replace("__SINGLE_QUOTE__", "'") for p in parts]
+                            store_id = int(parts[3])
+                            date_str = parts[4].strip("'")
+                            gate_id = int(parts[5])
+                            hourly_vals = [int(v) if v.isdigit() else 0 for v in parts[7:24]]
+                            if len(hourly_vals) < 17:
+                                hourly_vals.extend([0] * (17 - len(hourly_vals)))
+                            record = [date_str, store_id, gate_id] + hourly_vals
+                            parsed_records.append(record)
+                        except Exception:
+                            continue
+        if not parsed_records:
+            return pd.DataFrame()
+        cols = ["date", "store_id", "gate_id"] + HOURLY_COLUMNS
+        df_parsed = pd.DataFrame(parsed_records, columns=cols)
+        df_agg = df_parsed.groupby(["date", "store_id", "gate_id"])[HOURLY_COLUMNS].sum().reset_index()
+        df_agg["total_footfall"] = df_agg[HOURLY_COLUMNS].sum(axis=1)
+        return df_agg
+    except Exception:
+        return pd.DataFrame()
+
+
+def sync_actuals_to_dataset():
+    if not DATA_PATH.exists():
+        return False, "Required dataset file not found."
+
+    try:
+        df_main = pd.read_csv(DATA_PATH)
+        df_main["date"] = pd.to_datetime(df_main["date"], errors="coerce").dt.strftime("%Y-%m-%d")
+
+        updated_count = 0
+        added_count = 0
+
+        # 1. Sync actuals from shoppersstop_backup.sql
+        df_sql = parse_sql_dump_actuals()
+        if not df_sql.empty:
+            df_sql["date"] = pd.to_datetime(df_sql["date"], errors="coerce").dt.strftime("%Y-%m-%d")
+            for _, row in df_sql.iterrows():
+                d = str(row["date"])
+                s = int(row["store_id"])
+                g = int(row["gate_id"])
+                act = float(row["total_footfall"])
+
+                mask = (df_main["date"] == d) & (df_main["store_id"] == s) & (df_main["gate_id"] == g)
+                if mask.any():
+                    df_main.loc[mask, "total_footfall"] = act
+                    for hcol in HOURLY_COLUMNS:
+                        if hcol in df_main.columns and hcol in row:
+                            df_main.loc[mask, hcol] = row[hcol]
+                    updated_count += 1
+                else:
+                    new_row = {"date": d, "store_id": s, "gate_id": g, "total_footfall": act}
+                    for hcol in HOURLY_COLUMNS:
+                        if hcol in row:
+                            new_row[hcol] = row[hcol]
+                    df_main = pd.concat([df_main, pd.DataFrame([new_row])], ignore_index=True)
+                    added_count += 1
+
+        # 2. Sync actuals from actual_footfall.csv
+        if ACTUAL_FILE.exists():
+            actuals = pd.read_csv(ACTUAL_FILE)
+            if not actuals.empty:
+                actuals["date"] = pd.to_datetime(actuals["date"], errors="coerce").dt.strftime("%Y-%m-%d")
+                for _, row in actuals.iterrows():
+                    d = str(row["date"])
+                    s = int(row["store_id"])
+                    g = int(row["gate_id"])
+                    act = float(row["actual"])
+
+                    mask = (df_main["date"] == d) & (df_main["store_id"] == s) & (df_main["gate_id"] == g)
+                    if mask.any():
+                        df_main.loc[mask, "total_footfall"] = act
+                        updated_count += 1
+                    else:
+                        new_row = {"date": d, "store_id": s, "gate_id": g, "total_footfall": act}
+                        df_main = pd.concat([df_main, pd.DataFrame([new_row])], ignore_index=True)
+                        added_count += 1
+
+        df_main.to_csv(DATA_PATH, index=False)
+        return True, f"Synchronized {updated_count} updated and {added_count} new entries to training dataset."
+    except Exception as e:
+        return False, f"Sync error: {e}"
+
+
+def trigger_background_retrain():
+    def _worker():
+        try:
+            import subprocess
+            import sys
+            subprocess.run([sys.executable, "retrain_model.py"], capture_output=True, text=True)
+        except Exception:
+            pass
+
+    import threading
+    threading.Thread(target=_worker, daemon=True).start()
+
+
+# =========================================================
 # HOLIDAYS
 # =========================================================
 
@@ -1499,12 +1825,16 @@ def predict_one_date(
 
 
     # =====================================================
-    # CONVERT LOG → REAL FOOTFALL
+    # CONVERT LOG → REAL FOOTFALL & ADAPTIVE CALIBRATION
     # =====================================================
 
-    prediction = convert_prediction_to_footfall(
+    raw_val = convert_prediction_to_footfall(
         raw_prediction
     )
+
+    calib_factor, _, _ = get_recent_calibration_factor(store, gate)
+
+    prediction = raw_val * calib_factor
 
 
     return (
@@ -2050,6 +2380,161 @@ if predict_clicked:
 
 
         # =================================================
+        # HOURWISE PREDICTION
+        # =================================================
+
+        st.markdown("---")
+
+        st.subheader("⏰ Hourwise Footfall Prediction")
+
+        forecast_dates_str = future["date"].dt.strftime("%d-%m-%Y").tolist()
+
+        selected_date_fmt = pd.Timestamp(selected_date).strftime("%d-%m-%Y")
+
+        default_idx = forecast_dates_str.index(selected_date_fmt) if selected_date_fmt in forecast_dates_str else 0
+
+        col_h1, col_h2 = st.columns([2, 1])
+
+        with col_h1:
+
+            chosen_date_fmt = st.selectbox(
+                "Select Date for Hourwise Breakdown:",
+                options=forecast_dates_str,
+                index=default_idx,
+                key="hourly_date_select"
+            )
+
+        chosen_row = future[future["date"].dt.strftime("%d-%m-%Y") == chosen_date_fmt]
+
+        if not chosen_row.empty:
+
+            chosen_daily_pred = chosen_row.iloc[0]["Predicted_Footfall"]
+
+            chosen_target_date = chosen_row.iloc[0]["date"]
+
+        else:
+
+            chosen_daily_pred = prediction
+
+            chosen_target_date = selected_date
+
+        hourly_df = predict_hourwise(
+            chosen_daily_pred,
+            store_id,
+            gate_id,
+            chosen_target_date,
+            hourly_dist_data
+        )
+
+        if not hourly_df.empty and len(hourly_df) > 0:
+
+            peak_idx = hourly_df["Predicted Footfall"].idxmax()
+
+            peak_row = hourly_df.loc[peak_idx]
+
+            lowest_idx = hourly_df["Predicted Footfall"].idxmin()
+
+            lowest_row = hourly_df.loc[lowest_idx]
+
+            morning_val = hourly_df.iloc[0:5]["Predicted Footfall"].sum()
+
+            afternoon_val = hourly_df.iloc[5:10]["Predicted Footfall"].sum()
+
+            evening_val = hourly_df.iloc[10:15]["Predicted Footfall"].sum()
+
+            night_val = hourly_df.iloc[15:]["Predicted Footfall"].sum()
+
+            m1, m2, m3, m4 = st.columns(4)
+
+            with m1:
+
+                st.metric(
+                    "🔥 Peak Hour",
+                    f"{peak_row['Time Slot']}",
+                    f"{peak_row['Predicted Footfall']:.0f} visitors"
+                )
+
+            with m2:
+
+                st.metric(
+                    "🌅 Morning (07-12)",
+                    f"{morning_val:.0f}",
+                    f"{(morning_val / chosen_daily_pred * 100):.1f}%"
+                )
+
+            with m3:
+
+                st.metric(
+                    "☀️ Afternoon (12-17)",
+                    f"{afternoon_val:.0f}",
+                    f"{(afternoon_val / chosen_daily_pred * 100):.1f}%"
+                )
+
+            with m4:
+
+                st.metric(
+                    "🌆 Evening (17-22)",
+                    f"{evening_val:.0f}",
+                    f"{(evening_val / chosen_daily_pred * 100):.1f}%"
+                )
+
+            # Chart
+            fig_h, ax_h = plt.subplots(figsize=(10, 4.5))
+
+            bars = ax_h.bar(
+                hourly_df["Time Slot"],
+                hourly_df["Predicted Footfall"],
+                color="#2b5c8f",
+                edgecolor="none",
+                alpha=0.85
+            )
+
+            bars[peak_idx].set_color("#e05d06")
+
+            ax_h.set_title(
+                f"Predicted Hourly Distribution ({chosen_date_fmt}) - Total: {chosen_daily_pred:.0f} visitors",
+                fontsize=11,
+                fontweight="bold"
+            )
+
+            ax_h.set_ylabel("Predicted Visitors")
+
+            ax_h.set_xlabel("Time Slot")
+
+            plt.xticks(rotation=45, ha="right")
+
+            ax_h.grid(axis="y", linestyle="--", alpha=0.5)
+
+            fig_h.tight_layout()
+
+            st.pyplot(fig_h)
+
+            plt.close(fig_h)
+
+            with st.expander("📋 Detailed Hourly Breakdown Data Table"):
+
+                st.dataframe(
+                    hourly_df,
+                    use_container_width=True
+                )
+
+            hourly_export = hourly_df.copy()
+
+            hourly_export["Date"] = pd.Timestamp(chosen_target_date).strftime("%Y-%m-%d")
+
+            hourly_export["Store_ID"] = store_id
+
+            hourly_export["Gate_ID"] = gate_id
+
+            st.download_button(
+                "📥 Download Hourwise Prediction CSV",
+                data=hourly_export.to_csv(index=False),
+                file_name=f"hourly_footfall_store_{store_id}_gate_{gate_id}_{pd.Timestamp(chosen_target_date).strftime('%Y%m%d')}.csv",
+                mime="text/csv"
+            )
+
+
+        # =================================================
         # ACTUAL FOOTFALL
         # =================================================
 
@@ -2347,8 +2832,11 @@ if predict_clicked:
                         )
 
 
+                sync_actuals_to_dataset()
+                trigger_background_retrain()
+
                 st.success(
-                    "✅ Actual Footfall Saved!"
+                    "✅ Actual Footfall Saved! Model background learning triggered."
                 )
 
 
