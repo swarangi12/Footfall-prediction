@@ -20,6 +20,7 @@ except Exception:
 
 import os
 import pickle
+import shutil
 from datetime import date
 from pathlib import Path
 
@@ -2138,6 +2139,13 @@ if predict_clicked:
                 PREDICTION_LOG,
                 index=False
             )
+
+        try:
+            django_pred_path = BASE_DIR / "django_project" / "prediction_log.csv"
+            if django_pred_path.parent.exists():
+                shutil.copy(PREDICTION_LOG, django_pred_path)
+        except Exception:
+            pass
 
 
         # =================================================

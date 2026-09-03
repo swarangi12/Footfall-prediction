@@ -15,24 +15,23 @@ from .models import DailyHourlyFootfall
 # ============================================================
 
 def get_prediction_file():
-    
-
     possible_paths = [
-        os.path.join(
-            settings.BASE_DIR,
-            "prediction_log.csv"
-        ),
         os.path.join(
             settings.BASE_DIR.parent,
             "prediction_log.csv"
         ),
+        os.path.join(
+            settings.BASE_DIR,
+            "prediction_log.csv"
+        ),
     ]
 
-    for path in possible_paths:
-        if os.path.exists(path):
-            return path
+    existing = [p for p in possible_paths if os.path.exists(p)]
+    if not existing:
+        return possible_paths[0]
 
-    return possible_paths[1]
+    existing.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+    return existing[0]
 
 
 
