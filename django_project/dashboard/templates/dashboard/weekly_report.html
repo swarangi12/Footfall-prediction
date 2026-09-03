@@ -203,45 +203,25 @@
     </div>
 
 
-    <!-- STORE ID -->
+    <!-- STORE ID / RANGE -->
     <div class="filter-group">
-
         <label for="store_id">
             <strong>Store ID:</strong>
         </label>
-
-        <select
+        <input
+            type="text"
             name="store_id"
             id="store_id"
+            value="{{ selected_store }}"
+            placeholder="e.g. all, 250-300, 272, 273"
+            style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; min-width: 250px; height: 38px;"
         >
-
-            <option
-                value="all"
-                {% if selected_store == "all" %}
-                    selected
-                {% endif %}
-            >
-                All Stores
-            </option>
-
-            {% for store_id in store_options %}
-
-                <option
-                    value="{{ store_id }}"
-                    {% if selected_store|stringformat:"s" == store_id|stringformat:"s" %}
-                        selected
-                    {% endif %}
-                >
-                    Store {{ store_id }}
-                </option>
-
-            {% endfor %}
-
-        </select>
-
+        <div style="font-size: 11px; color: #6b7280; margin-top: 4px;">
+            Supports: <code>all</code>, comma-separated (<code>272, 273</code>), or range (<code>250-300</code>)
+        </div>
     </div>
 
-
+        
     <!-- VARIATION -->
     <div class="filter-group">
 

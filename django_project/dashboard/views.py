@@ -151,9 +151,50 @@ def get_week_start(request, prediction_file):
 
 
 
-def dashboard(request):
+def parse_store_filter(raw_input):
+    """
+    Parses store filter inputs.
+    Supports:
+      - 'all' (all stores)
+      - Single store: '272'
+      - Multiple comma-separated stores: '272, 273, 274'
+      - Store range: '250-300'
+      - Mixed: '250-260, 272, 280-300'
+    Returns a set of integer store IDs, or None for 'all'.
+    """
+    if not raw_input or raw_input.strip().lower() == "all":
+        return None
 
+    selected_stores = set()
+    parts = [p.strip() for p in raw_input.replace(" ", ",").split(",") if p.strip()]
+
+    for part in parts:
+        if part.lower() == "all":
+            continue
+        if "-" in part:
+            range_split = part.split("-")
+            if len(range_split) == 2:
+                try:
+                    start_s = int(range_split[0].strip())
+                    end_s = int(range_split[1].strip())
+                    if start_s <= end_s:
+                        selected_stores.update(range(start_s, end_s + 1))
+                    else:
+                        selected_stores.update(range(end_s, start_s + 1))
+                    continue
+                except ValueError:
+                    pass
+        try:
+            selected_stores.add(int(part))
+        except ValueError:
+            pass
+
+    return selected_stores if selected_stores else None
+
+
+def dashboard(request):
     prediction_file = get_prediction_file()
+    # (Rest of header continues...)
 
     week_start = get_week_start(
         request,
@@ -560,13 +601,11 @@ def dashboard(request):
     selected_store = request.GET.get(
         "store_id",
         "all"
-    )
+    ).strip()
 
-    # Store IDs for dropdown
+    # Store IDs for reference
     store_options = []
-
     if not pred_df.empty:
-
         store_options = sorted(
             pred_df["store_id"]
             .dropna()
@@ -575,29 +614,14 @@ def dashboard(request):
             .tolist()
         )
 
-    
+    target_store_ids = parse_store_filter(selected_store)
 
-    if selected_store != "all":
-
-        try:
-
-            selected_store_id = int(
-                selected_store
-            )
-
-            df = df[
-                df["store_id"]
-                .astype(int)
-                ==
-                selected_store_id
-            ].copy()
-
-        except (
-            ValueError,
-            TypeError
-        ):
-
-            selected_store = "all"
+    if target_store_ids is not None:
+        df = df[
+            df["store_id"]
+            .astype(int)
+            .isin(target_store_ids)
+        ].copy()
 
     
     data_lookup = {}
