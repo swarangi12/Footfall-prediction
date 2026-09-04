@@ -64,6 +64,148 @@
             height: 38px;
         }
 
+        /* ---- Dropdown Checkbox Styles ---- */
+        .store-dropdown-container {
+            position: relative;
+            min-width: 280px;
+        }
+
+        .dropdown-btn {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            background: #fff;
+            color: #111827;
+            height: 38px;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        .dropdown-btn:hover { border-color: #9ca3af; }
+
+        .dropdown-menu-panel {
+            display: none;
+            position: absolute;
+            top: calc(100% + 5px);
+            left: 0;
+            width: 380px;
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            z-index: 1000;
+            padding: 14px;
+        }
+
+        .dropdown-menu-panel.show { display: block; }
+
+        .range-box-row {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+
+        .range-box-row input {
+            flex: 1;
+            padding: 6px 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        .btn-range-apply {
+            padding: 6px 12px;
+            background: #2563eb;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .btn-range-apply:hover { background: #1d4ed8; }
+
+        .preset-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+
+        .preset-pill {
+            padding: 3px 8px;
+            background: #f3f4f6;
+            color: #374151;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .preset-pill:hover { background: #e5e7eb; color: #111827; }
+
+        .store-search-box {
+            width: 100%;
+            padding: 6px 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+
+        .checkbox-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 6px;
+            border-bottom: 1px solid #f3f4f6;
+            margin-bottom: 6px;
+            font-size: 12px;
+        }
+
+        .checkbox-actions a {
+            color: #2563eb;
+            text-decoration: none;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .checkbox-actions a:hover { text-decoration: underline; }
+
+        .checkbox-list {
+            max-height: 200px;
+            overflow-y: auto;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 4px;
+            padding-right: 4px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            padding: 3px 6px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .checkbox-item:hover { background: #f9fafb; }
+
+        .checkbox-item input[type="checkbox"] {
+            cursor: pointer;
+            accent-color: #2563eb;
+        }
+
         .btn-show {
             padding: 8px 20px;
             background: #1f2937;
@@ -203,21 +345,102 @@
     </div>
 
 
-    <!-- STORE ID / RANGE -->
+    <!-- STORE ID / MULTI & RANGE DROPDOWN -->
     <div class="filter-group">
-        <label for="store_id">
-            <strong>Store ID:</strong>
+        <label>
+            <strong>Store ID(s) / Range:</strong>
         </label>
-        <input
-            type="text"
-            name="store_id"
-            id="store_id"
-            value="{{ selected_store }}"
-            placeholder="e.g. all, 250-300, 272, 273"
-            style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; min-width: 250px; height: 38px;"
-        >
-        <div style="font-size: 11px; color: #6b7280; margin-top: 4px;">
-            Supports: <code>all</code>, comma-separated (<code>272, 273</code>), or range (<code>250-300</code>)
+        
+        <div class="store-dropdown-container">
+            <!-- Hidden input that carries the actual query value to the backend -->
+            <input type="hidden" name="store_id" id="store_id_hidden" value="{{ selected_store }}">
+
+            <!-- Trigger Button -->
+            <button type="button" class="dropdown-btn" id="storeDropdownBtn" onclick="toggleStoreDropdown()">
+                <span id="storeDropdownLabel">
+                    {% if is_all_stores %}
+                        All Stores ({{ store_options|length }})
+                    {% elif selected_store_list|length == 1 %}
+                        Store {{ selected_store_list.0 }}
+                    {% elif selected_store_list|length > 1 %}
+                        {{ selected_store_list|length }} Stores Selected
+                    {% else %}
+                        {{ selected_store }}
+                    {% endif %}
+                </span>
+                <span style="font-size: 11px; color: #6b7280;">▼</span>
+            </button>
+
+            <!-- Dropdown Menu Panel -->
+            <div class="dropdown-menu-panel" id="storeDropdownPanel">
+                
+                <!-- Range Input Row -->
+                <div style="font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 4px;">
+                    Select Range or Comma-separated:
+                </div>
+                <div class="range-box-row">
+                    <input 
+                        type="text" 
+                        id="customRangeInput" 
+                        placeholder="e.g. 250-300 or 272, 273"
+                        value="{% if not is_all_stores %}{{ selected_store }}{% endif %}"
+                    >
+                    <button type="button" class="btn-range-apply" onclick="applyCustomRange()">Select Range</button>
+                </div>
+
+                <!-- Quick Range Presets -->
+                <div style="font-size: 11px; font-weight: 600; color: #6b7280; margin-bottom: 4px;">Quick Presets:</div>
+                <div class="preset-pills">
+                    <button type="button" class="preset-pill" onclick="selectRangePreset('all')">All</button>
+                
+                    <button type="button" class="preset-pill" onclick="selectRangePreset('250-299')">250-299</button>
+                    <button type="button" class="preset-pill" onclick="selectRangePreset('300-349')">300-349</button>
+                    <button type="button" class="preset-pill" onclick="selectRangePreset('350-399')">350-399</button>
+                    <button type="button" class="preset-pill" onclick="selectRangePreset('400-499')">400-499</button>
+                    <button type=""button" class="preset-pill" onclick="selectRangePreset('500-599')">500-599</button>
+                    <button type="button" class="preset-pill" style="color: #ef4444;" onclick="clearAllStores()">Clear</button>
+                </div>
+
+                <!-- Search Input -->
+                <input 
+                    type="text" 
+                    id="storeSearchBox" 
+                    class="store-search-box" 
+                    placeholder="🔍 Filter stores list..."
+                    onkeyup="filterStoreCheckboxes()"
+                >
+
+                <!-- Actions Header -->
+                <div class="checkbox-actions">
+                    <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; font-size: 12px;">
+                        <input type="checkbox" id="masterSelectAll" onchange="toggleSelectAll(this)" {% if is_all_stores %}checked{% endif %}>
+                        <strong>Select All ({{ store_options|length }})</strong>
+                    </label>
+                    <a onclick="clearAllStores()">Deselect All</a>
+                </div>
+
+                <!-- Scrollable Checkbox List -->
+                <div class="checkbox-list" id="checkboxListContainer">
+                    {% for store_id in store_options %}
+                        <label class="checkbox-item" data-store="{{ store_id }}">
+                            <input 
+                                type="checkbox" 
+                                class="store-checkbox" 
+                                value="{{ store_id }}"
+                                onchange="onStoreCheckboxChange()"
+                                {% if is_all_stores or store_id in selected_store_list %}checked{% endif %}
+                            >
+                            <span>Store {{ store_id }}</span>
+                        </label>
+                    {% endfor %}
+                </div>
+
+                <!-- Apply & Close -->
+                <div style="margin-top: 12px; display: flex; justify-content: flex-end; gap: 8px;">
+                    <button type="button" style="padding: 5px 12px; border: 1px solid #d1d5db; background: #fff; border-radius: 6px; font-size: 12px; cursor: pointer;" onclick="toggleStoreDropdown()">Done</button>
+                </div>
+
+            </div>
         </div>
     </div>
 
@@ -338,5 +561,149 @@
     <a href="/" class="back-btn">&larr; Back to Dashboard</a>
 
 </div>
+
+<script>
+    function toggleStoreDropdown() {
+        const panel = document.getElementById('storeDropdownPanel');
+        panel.classList.toggle('show');
+    }
+
+    // Close on click outside
+    document.addEventListener('click', function(event) {
+        const container = document.querySelector('.store-dropdown-container');
+        if (container && !container.contains(event.target)) {
+            const panel = document.getElementById('storeDropdownPanel');
+            if (panel) panel.classList.remove('show');
+        }
+    });
+
+    function filterStoreCheckboxes() {
+        const query = document.getElementById('storeSearchBox').value.trim().toLowerCase();
+        const items = document.querySelectorAll('.checkbox-item');
+        items.forEach(item => {
+            const text = item.getAttribute('data-store') || item.innerText;
+            if (text.toLowerCase().includes(query)) {
+                item.style.display = 'flex';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    }
+
+    function toggleSelectAll(masterCheckbox) {
+        const checkboxes = document.querySelectorAll('.store-checkbox');
+        checkboxes.forEach(cb => {
+            cb.checked = masterCheckbox.checked;
+        });
+        updateStoreSelection();
+    }
+
+    function clearAllStores() {
+        const checkboxes = document.querySelectorAll('.store-checkbox');
+        checkboxes.forEach(cb => cb.checked = false);
+        const master = document.getElementById('masterSelectAll');
+        if (master) master.checked = false;
+        document.getElementById('customRangeInput').value = '';
+        updateStoreSelection();
+    }
+
+
+    function selectRangePreset(preset) {
+        const checkboxes = document.querySelectorAll('.store-checkbox');
+        if (preset === 'all') {
+            checkboxes.forEach(cb => cb.checked = true);
+            const master = document.getElementById('masterSelectAll');
+            if (master) master.checked = true;
+            document.getElementById('customRangeInput').value = 'all';
+        } else {
+            const parts = preset.split('-').map(Number);
+            const start = parts[0], end = parts[1];
+            checkboxes.forEach(cb => {
+                const storeId = Number(cb.value);
+                cb.checked = (storeId >= start && storeId <= end);
+            });
+            const master = document.getElementById('masterSelectAll');
+            if (master) master.checked = false;
+            document.getElementById('customRangeInput').value = preset;
+        }
+        updateStoreSelection();
+    }
+
+    function applyCustomRange() {
+        const inputVal = document.getElementById('customRangeInput').value.trim();
+        if (!inputVal) return;
+
+        if (inputVal.toLowerCase() === 'all') {
+            selectRangePreset('all');
+            return;
+        }
+        
+
+        const checkboxes = document.querySelectorAll('.store-checkbox');
+        const parts = inputVal.replace(/ /g, ',').split(',').filter(Boolean);
+        const targetIds = new Set();
+
+        parts.forEach(part => {
+            if (part.includes('-')) {
+                const r = part.split('-').map(Number);
+                const s = Math.min(r[0], r[1]), e = Math.max(r[0], r[1]);
+                for (let i = s; i <= e; i++) targetIds.add(i);
+            } else {
+                const num = Number(part);
+                if (!isNaN(num)) targetIds.add(num);
+            }
+        });
+
+        checkboxes.forEach(cb => {
+            cb.checked = targetIds.has(Number(cb.value));
+        });
+
+        const master = document.getElementById('masterSelectAll');
+        if (master) master.checked = false;
+        updateStoreSelection();
+    }
+
+    function onStoreCheckboxChange() {
+        updateStoreSelection();
+    }
+
+    function updateStoreSelection() {
+        const checkboxes = document.querySelectorAll('.store-checkbox');
+        const checkedValues = [];
+        checkboxes.forEach(cb => {
+            if (cb.checked) checkedValues.push(cb.value);
+        });
+
+        const hiddenInput = document.getElementById('store_id_hidden');
+        const label = document.getElementById('storeDropdownLabel');
+
+        if (checkedValues.length === checkboxes.length || checkedValues.length === 0) {
+            hiddenInput.value = 'all';
+            label.innerText = `All Stores (${checkboxes.length})`;
+            const master = document.getElementById('masterSelectAll');
+            if (master) master.checked = (checkedValues.length === checkboxes.length);
+        } else if (checkedValues.length === 1) {
+            hiddenInput.value = checkedValues[0];
+            label.innerText = `Store ${checkedValues[0]}`;
+        } else {
+            const sortedNums = checkedValues.map(Number).sort((a, b) => a - b);
+            let isContiguous = true;
+            for (let i = 1; i < sortedNums.length; i++) {
+                if (sortedNums[i] !== sortedNums[i-1] + 1) {
+                    isContiguous = false;
+                    break;
+                }
+            }
+            if (isContiguous && sortedNums.length > 3) {
+                const rangeStr = `${sortedNums[0]}-${sortedNums[sortedNums.length - 1]}`;
+                hiddenInput.value = rangeStr;
+                label.innerText = `Range ${rangeStr} (${sortedNums.length} stores)`;
+            } else {
+                hiddenInput.value = checkedValues.join(', ');
+                label.innerText = `${checkedValues.length} Stores Selected`;
+            }
+        }
+    }
+</script>
 </body>
 </html>

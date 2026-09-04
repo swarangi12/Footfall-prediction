@@ -153,7 +153,7 @@ def get_week_start(request, prediction_file):
 
 def parse_store_filter(raw_input):
     """
-    Parses store filter inputs.
+    Parses store filter inputs from string or list.
     Supports:
       - 'all' (all stores)
       - Single store: '272'
@@ -162,33 +162,47 @@ def parse_store_filter(raw_input):
       - Mixed: '250-260, 272, 280-300'
     Returns a set of integer store IDs, or None for 'all'.
     """
-    if not raw_input or raw_input.strip().lower() == "all":
+    if not raw_input:
         return None
 
+    if isinstance(raw_input, str):
+        if raw_input.strip().lower() == "all":
+            return None
+        raw_items = [raw_input]
+    else:
+        raw_items = list(raw_input)
+
     selected_stores = set()
-    parts = [p.strip() for p in raw_input.replace(" ", ",").split(",") if p.strip()]
+    has_all = False
 
-    for part in parts:
-        if part.lower() == "all":
+    for item in raw_items:
+        if not item:
             continue
-        if "-" in part:
-            range_split = part.split("-")
-            if len(range_split) == 2:
-                try:
-                    start_s = int(range_split[0].strip())
-                    end_s = int(range_split[1].strip())
-                    if start_s <= end_s:
-                        selected_stores.update(range(start_s, end_s + 1))
-                    else:
-                        selected_stores.update(range(end_s, start_s + 1))
-                    continue
-                except ValueError:
-                    pass
-        try:
-            selected_stores.add(int(part))
-        except ValueError:
-            pass
+        parts = [p.strip() for p in str(item).replace(" ", ",").split(",") if p.strip()]
+        for part in parts:
+            if part.lower() == "all":
+                has_all = True
+                continue
+            if "-" in part:
+                range_split = part.split("-")
+                if len(range_split) == 2:
+                    try:
+                        start_s = int(range_split[0].strip())
+                        end_s = int(range_split[1].strip())
+                        if start_s <= end_s:
+                            selected_stores.update(range(start_s, end_s + 1))
+                        else:
+                            selected_stores.update(range(end_s, start_s + 1))
+                        continue
+                    except ValueError:
+                        pass
+            try:
+                selected_stores.add(int(part))
+            except ValueError:
+                pass
 
+    if has_all and not selected_stores:
+        return None
     return selected_stores if selected_stores else None
 
 
@@ -598,10 +612,16 @@ def dashboard(request):
 
     
 
-    selected_store = request.GET.get(
-        "store_id",
-        "all"
-    ).strip()
+    store_params = request.GET.getlist("store_id")
+    if not store_params:
+        single_s = request.GET.get("store_id", "all")
+        store_params = [single_s.strip()] if single_s else ["all"]
+
+    store_params = [s.strip() for s in store_params if s and s.strip()]
+    if not store_params:
+        store_params = ["all"]
+
+    selected_store = ", ".join(store_params)
 
     # Store IDs for reference
     store_options = []
@@ -614,7 +634,8 @@ def dashboard(request):
             .tolist()
         )
 
-    target_store_ids = parse_store_filter(selected_store)
+    target_store_ids = parse_store_filter(store_params)
+    selected_store_list = sorted(list(target_store_ids)) if target_store_ids is not None else []
 
     if target_store_ids is not None:
         df = df[
@@ -924,6 +945,14 @@ def dashboard(request):
             selected_store
         ),
 
+        "selected_store_list": (
+            selected_store_list
+        ),
+
+        "is_all_stores": (
+            target_store_ids is None
+        ),
+
         "store_options": (
             store_options
         ),
@@ -954,6 +983,8 @@ def get_actual_data(
             week_end
         ).date()
     )
+    
+    
 
     print("\n")
     print("=" * 70)

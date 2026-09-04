@@ -1131,13 +1131,7 @@ except Exception:
     india_holidays = {}
 
 
-# =========================================================
-# CREATE FEATURES
-#
-# IMPORTANT:
-# This function is NOT called on the complete dataset.
-# It is only called for the selected store/gate history.
-# =========================================================
+
 
 def create_features(data):
 
@@ -1448,9 +1442,7 @@ st.markdown(
     📊 Footfall Prediction Dashboard
     </h1>
 
-    <p style="text-align:center;font-size:20px;">
-    Two-Stage XGBoost Footfall Prediction
-    </p>
+   
     """,
     unsafe_allow_html=True
 )
@@ -1574,7 +1566,7 @@ def build_future_features(
             "No historical data available "
             "before selected date."
         )
-
+    
 
     # =====================================================
     # TEMP DATA
@@ -1629,7 +1621,7 @@ def build_future_features(
         raise ValueError(
             "Could not create prediction features."
         )
-
+    
 
     # =====================================================
     # CHECK FEATURES
@@ -1661,9 +1653,7 @@ def build_future_features(
     ].copy()
 
 
-    # =====================================================
-    # FALLBACK VALUES
-    # =====================================================
+    
 
     fallback_columns = [
 
@@ -1723,9 +1713,7 @@ def build_future_features(
                 ] = mean_value
 
 
-    # =====================================================
-    # TREND
-    # =====================================================
+    
 
     if pd.isna(
         X.iloc[0]["trend"]
@@ -1737,9 +1725,7 @@ def build_future_features(
         ] = 1.0
 
 
-    # =====================================================
-    # FINAL CLEANUP
-    # =====================================================
+    
 
     X = X.replace(
         [
@@ -2202,7 +2188,7 @@ if predict_clicked:
 
 
         st.subheader(
-            "📅 Next 7 Days Prediction"
+            " Next 7 Days Prediction"
         )
 
 
